@@ -11,7 +11,7 @@ import qualified Data.ByteString.Lazy as B
 import Config
 import OptionParser
 import Bookmark
-import FirefoxBookmarks
+import FirefoxBookmark
 
 
 -- | Initialize the setup

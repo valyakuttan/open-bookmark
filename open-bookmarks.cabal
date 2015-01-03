@@ -2,37 +2,66 @@
 -- documentation, see http://haskell.org/cabal/users-guide/
 
 name:                open-bookmarks
+
 version:             0.1.0.0
 -- synopsis:            
 -- description:         
 -- license:             
-license-file:        LICENSE
+--license-file:        LICENSE
 author:              valyakuttan
+
 maintainer:          kuttixxxl@gmail.com
 -- copyright:           
 -- category:            
 build-type:          Simple
 -- extra-source-files:  
-cabal-version:       >=1.10
+cabal-version:       >=1.18
 
 executable open-bookmarks
   main-is:             Main.hs
   -- other-modules:       
   -- other-extensions:    
-  build-depends:       aeson >= 0.8
+  build-depends:       aeson
                      , base >= 4.7
-                     , containers >= 0.5
-                     , bytestring >= 0.10
-                     , directory >= 1.2
-                     , errors >= 1.4
-                     , filepath >= 1.3
-                     , lens >= 4.5
-                     , mtl >= 2.2
-                     , optparse-applicative > 0.11
-                     , random >= 1.1
-                     , text >= 1.2
+                     , containers
+                     , bytestring
+                     , directory
+                     , errors
+                     , filepath
+                     , lens
+                     , mtl
+                     , optparse-applicative
+                     , random
+                     , text
                      , time >= 1.4 && < 1.5
-                     , transformers >= 0.4
+                     , transformers
+                     , unordered-containers
 
   hs-source-dirs:   src
+
   default-language:    Haskell2010
+
+  ghc-options:         -Wall -threaded
+
+test-suite             doctests
+  type:                exitcode-stdio-1.0
+
+  hs-source-dirs:      test
+
+  ghc-options:         -Wall -threaded
+
+  main-is:             doctests.hs
+
+  build-depends:       base >=4.7,
+                       doctest >= 0.8,
+                       directory,
+                       filepath,
+                       QuickCheck >= 2.0
+
+  default-language:    Haskell2010
+
+
+source-repository      head
+  type:                git
+
+  location:            git@github.com:valyakuttan/open-bookmarks.git
