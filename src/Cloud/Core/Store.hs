@@ -1,15 +1,15 @@
 {-# LANGUAGE OverloadedStrings #-}
 ----------------------------------------------------------------------
 -- |
--- Module : Cloud.Data.DataStore
+-- Module : Cloud.Data.Store
 --
 ----------------------------------------------------------------------
 
 
-module Cloud.Core.DataStore
+module Cloud.Core.Store
     (
-      -- * The @DataStore@ type
-      DataStore
+      -- * The @Store@ type
+      Store
     , Storable (..)
 
       -- * Construction
@@ -43,6 +43,8 @@ import           Data.Text           (Text)
 import           Prelude             hiding (lookup)
 
 
+import           Cloud.Core.Types    (Storable (..))
+
 -- $setup
 --
 -- >>> :set -XDeriveGeneric
@@ -73,23 +75,19 @@ type Hash1 = Text
 
 type MapL1 a = Map Hash1 a
 
-data DataStore a = DataStore { store :: !(MapL1 a) }
+data Store a = Store { store :: !(MapL1 a) }
                    deriving (Show, Eq)
 
-class (Eq a, FromJSON a , ToJSON a) => Storable a where
-    key :: a -> Hash1
-
-
--- | Construct an empty DataStore.
+-- | Construct an empty Store.
 --
-emptyStore :: DataStore a
-emptyStore = DataStore M.empty
+emptyStore :: Store a
+emptyStore = Store M.empty
 
 -- | Return 'True'if this Store is empty, 'False' otherwise.
 --
 -- >>> isEmpty emptyStore
 -- True
-isEmpty :: DataStore a -> Bool
+isEmpty :: Store a -> Bool
 isEmpty = M.null . store
 
 -- | Is the item a member of the store.
@@ -97,13 +95,13 @@ isEmpty = M.null . store
 -- >>> let a = mkTmpB "hello" 1 2 "world"
 -- >>> a `member` emptyStore
 -- False
-member :: Storable a => a -> DataStore a -> Bool
+member :: Storable a => a -> Store a -> Bool
 member a = maybe False (a ==) . lookup a
 
 -- | Lookup the value a in the store.
 -- The function will return the corresponding value
 -- as (Just value), or Nothing if the key is not in the map.
-lookup :: Storable a => a -> DataStore a -> Maybe a
+lookup :: Storable a => a -> Store a -> Maybe a
 lookup a = M.lookup (key a) . store
 -- | A store with a single element.
 --
@@ -116,8 +114,8 @@ lookup a = M.lookup (key a) . store
 -- >>> let a2 = mkTmpB "hello" 1 2 "world!"
 -- >>> a2 `member` s
 -- False
-singleton :: Storable a => a -> DataStore a
-singleton = DataStore . singletonL1
+singleton :: Storable a => a -> Store a
+singleton = Store . singletonL1
 
 -- | Insert a new value to the Store.
 --
@@ -150,8 +148,8 @@ singleton = DataStore . singletonL1
 -- >>> let (Just a3') = lookup a3 s3
 -- >>> tt a3' == tt a3
 -- True
-insert :: Storable a => a -> DataStore a -> DataStore a
-insert a = DataStore . insertL1 a . store
+insert :: Storable a => a -> Store a -> Store a
+insert = insertWith const
 
 -- |  Insert with a function, combining new value and old value.
 -- @insertWith f a store@ will insert a into store if a does not
@@ -159,9 +157,9 @@ insert a = DataStore . insertL1 a . store
 -- the value @f new_value old_value@ into the store.
 insertWith :: Storable a => (a -> a -> a)
            -> a
-           -> DataStore a
-           -> DataStore a
-insertWith f a = DataStore . insertWithL1 f a . store
+           -> Store a
+           -> Store a
+insertWith f a = Store . insertWithL1 f a . store
 
 -- | Delete a value from the store. When value is not in the
 -- store, the original store is returned.
@@ -209,8 +207,8 @@ insertWith f a = DataStore . insertWithL1 f a . store
 -- False
 -- >>> store s4 == store s
 -- True
-delete :: Storable a => a -> DataStore a -> DataStore a
-delete a = DataStore . deleteL1 a . store
+delete :: Storable a => a -> Store a -> Store a
+delete a = Store . deleteL1 a . store
 
 -- | The expression (update f a s) updates the value a (if it is
 -- in the store). If (f a) is Nothing, the element is deleted. If
@@ -238,7 +236,7 @@ delete a = DataStore . deleteL1 a . store
 -- >>> let s3 = update (\_ -> Nothing) a2 s2
 -- >>> a2 `member` s3
 -- False
-update :: Storable a => (a -> Maybe a) -> a -> DataStore a -> DataStore a
+update :: Storable a => (a -> Maybe a) -> a -> Store a -> Store a
 update f a s = case lookup a s of
                    Just x  -> case f x of
                                   Just x' -> insert x' s
@@ -246,18 +244,15 @@ update f a s = case lookup a s of
                    Nothing -> s
 
 -- |  Return all elements of the store.
-elems :: Storable a => DataStore a -> [a]
-elems (DataStore s) = M.elems s
+elems :: Storable a => Store a -> [a]
+elems (Store s) = M.elems s
 
 -- | Build a store from a list.
-fromList :: Storable a => [a] -> DataStore a
+fromList :: Storable a => [a] -> Store a
 fromList = foldr insert emptyStore
 
 deleteL1 :: Storable a => a -> MapL1 a -> MapL1 a
 deleteL1 a = M.delete (key a)
-
-insertL1 :: Storable a => a -> MapL1 a -> MapL1 a
-insertL1 a = M.insert (key a) a
 
 insertWithL1 :: Storable a => (a -> a -> a) -> a -> MapL1 a -> MapL1 a
 insertWithL1 f a = M.insertWith f (key a) a
@@ -265,9 +260,9 @@ insertWithL1 f a = M.insertWith f (key a) a
 singletonL1 :: Storable a => a -> MapL1 a
 singletonL1 a = M.singleton (key a) a
 
-instance FromJSON a => FromJSON (DataStore a) where
-    parseJSON (Object v) = DataStore <$> v .: "store"
+instance FromJSON a => FromJSON (Store a) where
+    parseJSON (Object v) = Store <$> v .: "store"
     parseJSON _          = mzero
 
-instance ToJSON a => ToJSON (DataStore a) where
-    toJSON (DataStore s) = object ["store" .= s]
+instance ToJSON a => ToJSON (Store a) where
+    toJSON (Store s) = object ["store" .= s]

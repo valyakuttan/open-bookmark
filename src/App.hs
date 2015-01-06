@@ -27,13 +27,11 @@ import qualified Data.ByteString.Lazy as B
 import           System.Directory
 
 import           Cloud.Config
-import           Cloud.Core.Engine
 import           Cloud.Utils
 
 
 data Env = Env
     { config       :: !Config
-    , defaultCloud :: !Cloud
     , rootDir      :: !FilePath
     , currentTime  :: !POSIXMicroSeconds
     }
@@ -50,8 +48,7 @@ currentEnvironment = App ask
 getDefaultAppEnvironment :: FilePath -> IO Env
 getDefaultAppEnvironment root = do
       t <- currentTimeInPOSIXMicroSeconds
-      let c = emptyCloud t t
-      return $ Env defaultConfig c root t
+      return $ Env defaultConfig root t
 
 readJSON :: FromJSON a => FilePath -> App a
 readJSON path = App $ do

@@ -11,13 +11,10 @@ module Api.Internal
     (
       -- * Basic Types to work with clouds
       BookmarkCloud
-    , TagCloud
 
       -- * File system utilities
-    , bookmarkCloudPath
-    , tagCloudPath
-    , bookmarkCloudDirectory
-    , tagCloudDirectory
+    , cloudFilePath
+    , cloudDirectory
 
       -- * Environment manipulation
     , getConfig
@@ -25,138 +22,116 @@ module Api.Internal
     , getCurrentTime
 
       -- * Query cloud
-    , searchBookmark
-    , searchTag
+    , search
 
       -- * Bookmark cloud manipulation
-    , insertBookmark
-    , insertTag
+    , insert
+    , insertWith
 
       -- * Read/Write
-    , readBookmarkCloud
-    , readBookmarkCloudWithDefault
-    , readTagCloud
-    , readTagCloudWithDefault
-    , writeBookmarkCloud
-    , writeTagCloud
+    , readCloud
+    , readCloudWithDefault
+    , writeCloud
     ) where
 
 
 import           Control.Applicative
+import           Control.Lens
+import           Data.Text           (pack)
 
 import           App
-import           Cloud.Config
-import           Cloud.Core.Bookmarkable
-import           Cloud.Core.Engine       (Cloud, JSONData,
-                                          bookmarkableToJSONData,
-                                          taggableToJSONData)
-import qualified Cloud.Core.Engine       as C
-import           Cloud.Core.Taggable
-import           Cloud.Utils
+import qualified Cloud.Config        as Cfg
+import           Cloud.Core.Engine   (Cloud)
+import qualified Cloud.Core.Engine   as Engine
+import           Cloud.Types
 
 
-newtype BookmarkCloud = BC { bc :: (FilePath, Cloud) }
-newtype TagCloud = TC { tc :: (FilePath, Cloud) }
+newtype BookmarkCloud = BC { getCloud :: (FilePath, Cloud) }
+                      deriving (Eq)
 
--- | Search a bookmark in the cloud. Returns @('Just' v)@
+
+-- | Search a bookmarkable in the cloud. Returns @('Just' v)@
 -- if present, or 'Nothing' otherwise.
-searchBookmark :: Bookmarkable b => b
-               -> App (Maybe JSONData)
-searchBookmark b = search'. unwrap <$> readBookmarkCloud b
+search :: Bookmarkable b => b
+       -> App (Maybe Bookmark)
+search b = do
+    c <- readCloud b
+    result <- performOp search' b c
+    case result of
+        Just r -> return r
+        Nothing -> return Nothing
   where
-      search' = C.search $ bookmarkableToJSONData b
-      unwrap  = snd . bc
+      search' = Engine.search $ Engine.bookmarkableToBookmark b
 
--- | Search a tag in the cloud. Returns @('Just' v)@
--- if present, or 'Nothing' otherwise.
-searchTag :: Taggable b => b
-          -> App (Maybe JSONData)
-searchTag b = search'. unwrap <$> readTagCloud b
-  where
-      search' = C.search $ taggableToJSONData b
-      unwrap  = snd . tc
-
--- | Insert a bookmark into the cloud. Returns the modifed cloud
--- if cloud is bookmark's destination and it is modified, otherwise
--- return original cloud.
-insertBookmark :: Bookmarkable b => b
-               -> BookmarkCloud -> App BookmarkCloud
-insertBookmark b c = do
-    path <- bookmarkCloudPath b
+-- | Insert with a function, combining new value and old value.
+-- @insertWith f b bookmarkcloud@ will insert b into bookmarkcloud
+-- if b does not exist in the bookmarkcloud. Otherwise, the
+-- function will insert the value @f new_value old_value@ into
+-- the bookmarkcloud.
+insertWith :: Bookmarkable b => (Bookmark -> Bookmark -> Bookmark)
+           -> b
+           -> BookmarkCloud
+           -> App BookmarkCloud
+insertWith f b c = do
+    path <- cloudFilePath b
     time <- getCurrentTime
-    let bj = bookmarkableToJSONData b
-    case isCompatible path (bc c) of
-        Just c' -> BC <$> return (path, C.insert time bj c')
+    let bj = Engine.bookmarkableToBookmark b
+
+    result <- performOp (Engine.insertWith time f bj) b c
+    case result of
+        Just c' -> BC <$> return (path, c')
         Nothing -> return c
 
--- | Insert a bookmark into the cloud. Returns the modifed cloud
--- if cloud is bookmark's destination and it is modified, otherwise
--- return original cloud.
-insertTag :: Taggable b => b
-               -> TagCloud -> App TagCloud
-insertTag b c = do
-    path <- tagCloudPath b
-    time <- getCurrentTime
-    let bj = taggableToJSONData b
-    case isCompatible path (tc c) of
-        Just c' -> TC <$> return (path, C.insert time bj c')
-        Nothing -> return c
+-- | Insert a bookmarkable into the cloud. Returns the modifed cloud
+-- if the cloud is bookmark's destination and it is modified,
+-- otherwise return original cloud.
+insert :: Bookmarkable b => b
+       -> BookmarkCloud
+       -> App BookmarkCloud
+insert = insertWith const
 
--- | Read a bookmark cloud from disk. If the operation
+-- | Read a cloud from disk. If the operation
 -- fails it returns a default cloud.
-readBookmarkCloudWithDefault :: Bookmarkable b => b -> App BookmarkCloud
-readBookmarkCloudWithDefault b = readBookmarkCloud b <|> BC <$> dc
+readCloudWithDefault :: Bookmarkable b => b -> App BookmarkCloud
+readCloudWithDefault b = readCloud b <|> BC <$> pair
   where
-      dc = (,) <$> path <*> (defaultCloud <$> currentEnvironment)
-      path = bookmarkCloudPath b
+      pair = (,) <$> path <*> cloud
+      path = cloudFilePath b
+      cloud = Engine.emptyCloud <$> pure (bookmarkType b) <*> t <*> t
+      t = getCurrentTime
 
--- | Read a bookmark cloud from disk.
-readBookmarkCloud :: Bookmarkable b => b -> App BookmarkCloud
-readBookmarkCloud b = BC <$> pair
+-- | Read a cloud from disk.
+readCloud :: Bookmarkable b => b -> App BookmarkCloud
+readCloud b = BC <$> pair
   where
       pair = (,) <$> path <*> (path >>= readJSON)
-      path = bookmarkCloudPath b
+      path = cloudFilePath b
 
--- | Write a bookmark cloud to disk.
-writeBookmarkCloud :: BookmarkCloud -> App ()
-writeBookmarkCloud = uncurry writeJSON . bc
+-- | Write a cloud back to disk.
+writeCloud :: BookmarkCloud -> App ()
+writeCloud = uncurry writeJSON . getCloud
 
--- | Read a tag cloud from disk. If the operation
--- fails it returns a default cloud.
-readTagCloudWithDefault :: Taggable b => b -> App TagCloud
-readTagCloudWithDefault b = readTagCloud b <|> TC <$> dc
-  where
-      dc = (,) <$> path <*> (defaultCloud <$> currentEnvironment)
-      path = tagCloudPath b
+cloudFilePath :: Bookmarkable b => b -> App FilePath
+cloudFilePath b =
+    Cfg.cloudFilePath <$> getConfig <*> getRootDir <*> pure b
 
--- | Read a tag cloud from disk.
-readTagCloud :: Taggable b => b -> App TagCloud
-readTagCloud b = TC <$> pair
-  where
-      pair = (,) <$> path <*> (path >>= readJSON)
-      path = tagCloudPath b
+cloudDirectory :: BookmarkType -> App FilePath
+cloudDirectory t = Cfg.cloudDirectoryPath t <$> getConfig <*> getRootDir
 
--- | Write a tg cloud to disk.
-writeTagCloud :: TagCloud -> App ()
-writeTagCloud = uncurry writeJSON . tc
+performOp :: Bookmarkable b => (Cloud -> a)
+          -> b
+          -> BookmarkCloud
+          -> App (Maybe a)
+performOp f b c = do
+    let (path,c') = getCloud c
+        btype = pack (show (bookmarkType b))
 
-bookmarkCloudPath :: Bookmarkable b => b -> App FilePath
-bookmarkCloudPath b =
-    bookmarkCloudFilePath <$> getConfig <*> getRootDir <*> pure b
+    path' <- cloudFilePath b
 
-bookmarkCloudDirectory :: App FilePath
-bookmarkCloudDirectory =
-    bookmarkCloudDirectoryPath <$> getConfig <*> getRootDir
+    let go ok | ok = return $ Just $ f c'
+              | otherwise = return Nothing
 
-tagCloudPath :: Taggable b => b -> App FilePath
-tagCloudPath b = tagCloudFilePath <$> getConfig <*> getRootDir <*> pure b
-
-tagCloudDirectory :: App FilePath
-tagCloudDirectory = tagCloudDirectoryPath <$> getConfig <*> getRootDir
-
-isCompatible :: FilePath -> (FilePath, a) -> Maybe a
-isCompatible path (path', cloud) | path == path' = Just cloud
-                                 | otherwise = Nothing
+    go (path == path' && btype == c' ^. Engine.cloudType)
 
 getConfig :: App Config
 getConfig = config <$> currentEnvironment

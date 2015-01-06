@@ -22,8 +22,8 @@ import           Data.Maybe
 import           Data.Text               (Text, split)
 import           GHC.Generics            (Generic)
 
-import           Cloud.Core.Bookmarkable
-import           Cloud.Utils
+import           Api.Core
+
 
 
 data RootMenu = RootMenu ![BookmarkMenu]
@@ -65,6 +65,7 @@ instance Bookmarkable FirefoxBookmark where
   bookmarkLastModified = toPOSIX . fbmLastModified
   bookmarkUri          = fromJust . fbmUri
   bookmarkTags         = maybe [] csvToList . fbmTags
+  bookmarkType _       = Book
 
 toPOSIX :: Maybe Integer -> POSIXMicroSeconds
 toPOSIX = maybe t integerToPOSIXMicroSeconds

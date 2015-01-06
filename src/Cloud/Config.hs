@@ -10,10 +10,8 @@
 module Cloud.Config (
       Config (..)
     , defaultConfig
-    , bookmarkCloudFilePath
-    , tagCloudFilePath
-    , bookmarkCloudDirectoryPath
-    , tagCloudDirectoryPath
+    , cloudFilePath
+    , cloudDirectoryPath
     ) where
 
 
@@ -22,69 +20,49 @@ import           Data.Text               (Text)
 import qualified Data.Text               as T
 import           GHC.Generics            (Generic)
 import           System.FilePath         ((</>))
+import Data.Map.Strict
 
-import           Cloud.Core.Bookmarkable
-import           Cloud.Core.Taggable
+import           Cloud.Core.Types
 
 
 data Config = Config {
-      bookmarkCloudPrefix   :: !Text
-    , bookmarksDirectory    :: !Text
-    , dataDirectory         :: !Text
-    , tagCloudPrefix        :: !Text
-    , tagsDirectory         :: !Text
+      cloudFilePrefix      :: Map Text Text
+    , cloudFileLocation    :: Map Text Text
+    , cloudHome            :: !Text
     , maximumNumberOfClouds :: Int
     } deriving (Show, Generic)
 
-bookmarkCloudFilePath :: Bookmarkable b => Config
+cloudFilePath :: Bookmarkable b => Config
                          -> FilePath
                          -> b
                          -> FilePath
-bookmarkCloudFilePath cfg root b = dir </> prefix
+cloudFilePath cfg root b = dir </> fileName
   where
-      dir    = bookmarkCloudDirectoryPath cfg root
-      prefix = bookmarkCloudFile cfg b
-
-tagCloudFilePath :: Taggable t => Config -> FilePath -> t -> FilePath
-tagCloudFilePath cfg root t = dir </> prefix
-  where
-      dir    = tagCloudDirectoryPath cfg root
-      prefix = tagCloudFile cfg t
-
-bookmarkCloudDirectoryPath :: Config -> FilePath -> FilePath
-bookmarkCloudDirectoryPath cfg root = dir
-  where
-      dir  = ddir </> T.unpack (bookmarksDirectory cfg)
-      ddir = root </> T.unpack (dataDirectory cfg)
-
-tagCloudDirectoryPath :: Config -> FilePath -> FilePath
-tagCloudDirectoryPath cfg root = dir
-  where
-      dir  = ddir </> T.unpack (tagsDirectory cfg)
-      ddir = root </> T.unpack (dataDirectory cfg)
-
-bookmarkCloudFile :: Bookmarkable b => Config -> b -> FilePath
-bookmarkCloudFile cfg b = prefix ++ suffix
-  where
-      prefix = T.unpack $ bookmarkCloudPrefix cfg
-      suffix = show index ++ ".json"
+      dir      = cloudDirectoryPath t cfg root
+      fileName = prefix ++ show index ++ suffix
+      prefix = T.unpack (cloudFilePrefix cfg ! k)
       index  = bookmarkHash b `mod` maximumNumberOfClouds cfg
+      suffix = ".json"
+      t      = bookmarkType b
+      k      = T.pack $ show t
 
-tagCloudFile :: Taggable t => Config -> t -> FilePath
-tagCloudFile cfg t = prefix ++ suffix
+cloudDirectoryPath :: BookmarkType -> Config -> FilePath -> FilePath
+cloudDirectoryPath t cfg root = dir
   where
-      prefix = T.unpack $ tagCloudPrefix cfg
-      suffix = show index ++ ".json"
-      index  = tagHash t `mod` maximumNumberOfClouds cfg
+      dir  = ddir </> T.unpack (cloudFileLocation cfg ! k)
+      ddir = root </> T.unpack (cloudHome cfg)
+      k    = T.pack $ show t
 
 instance FromJSON Config
 instance ToJSON Config
 
 defaultConfig :: Config
 defaultConfig = Config
-                "bookmark-cloud-"
-                "bookmarks"
-                "data"
-                "tag-cloud-"
-                "tags"
-                10
+    (fromList [(book, "bookmark-cloud-"), (tag, "tag-cloud-")])
+    (fromList [(book, "bookmarks"), (tag, "tags")])
+    "data"
+    10
+  where
+      f = T.pack . show
+      book = f Book
+      tag = f Tag
