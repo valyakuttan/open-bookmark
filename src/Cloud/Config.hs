@@ -1,15 +1,15 @@
 {-# LANGUAGE DeriveGeneric     #-}
 {-# LANGUAGE OverloadedStrings #-}
+----------------------------------------------------------------------
+-- |
+-- Module : Cloud.Config
+--
+----------------------------------------------------------------------
 
-module BookmarkCloud.Config (
-      Config
-    , bookmarkCloudPrefix
-    , bookmarksDirectory
-    , dataDirectory
+
+module Cloud.Config (
+      Config (..)
     , defaultConfig
-    , tagCloudPrefix
-    , tagsDirectory
-    , maximumNumberOfClouds
     , bookmarkCloudFilePath
     , tagCloudFilePath
     , bookmarkCloudDirectoryPath
@@ -17,14 +17,14 @@ module BookmarkCloud.Config (
     ) where
 
 
-import           Data.Aeson                      (FromJSON, ToJSON)
-import           Data.Text                       (Text)
-import qualified Data.Text                       as T
-import           GHC.Generics                    (Generic)
-import           System.FilePath                 ((</>))
+import           Data.Aeson              (FromJSON, ToJSON)
+import           Data.Text               (Text)
+import qualified Data.Text               as T
+import           GHC.Generics            (Generic)
+import           System.FilePath         ((</>))
 
-import           BookmarkCloud.Core.Bookmarkable
-import           BookmarkCloud.Core.Taggable
+import           Cloud.Core.Bookmarkable
+import           Cloud.Core.Taggable
 
 
 data Config = Config {

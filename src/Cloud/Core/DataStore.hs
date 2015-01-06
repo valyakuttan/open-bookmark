@@ -1,12 +1,12 @@
 {-# LANGUAGE OverloadedStrings #-}
 ----------------------------------------------------------------------
 -- |
--- Module : BookmarkCloud.Data.DataStore
+-- Module : Cloud.Data.DataStore
 --
 ----------------------------------------------------------------------
 
 
-module BookmarkCloud.Data.DataStore
+module Cloud.Core.DataStore
     (
       -- * The @DataStore@ type
       DataStore
@@ -52,7 +52,7 @@ import           Prelude             hiding (lookup)
 -- >>> import qualified Data.Text as T
 -- >>> import GHC.Generics
 --
--- >>> import BookmarkCloud.Utils
+-- >>> import Cloud.Utils
 --
 -- >>> data TmpB = TmpB { tt :: !Text, td :: !POSIXMicroSeconds, tm :: !POSIXMicroSeconds, tu :: !Text } deriving (Show, Generic)
 --

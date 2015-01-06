@@ -1,20 +1,29 @@
 {-# LANGUAGE DeriveGeneric     #-}
 {-# LANGUAGE OverloadedStrings #-}
+----------------------------------------------------------------------
+-- |
+-- Module : FirefoxBookmark
+--
+----------------------------------------------------------------------
 
-module FirefoxBookmark (
+
+module FirefoxBookmark
+    (
       jsonToBookmarks
     , sampleBookmarks
     ) where
 
-import           Control.Applicative         ((<$>), (<*>))
-import           Control.Monad               (mzero)
-import           Data.Aeson
-import           Data.ByteString.Lazy        (ByteString)
-import           Data.Text                   (Text, split)
-import           GHC.Generics                (Generic)
 
-import           BookmarkCloud.Core.Bookmark (Bookmarkable (..))
-import           BookmarkCloud.Utils         (integerToPOSIXMicroSeconds)
+import           Control.Applicative     ((<$>), (<*>))
+import           Control.Monad           (mzero)
+import           Data.Aeson
+import           Data.ByteString.Lazy    (ByteString)
+import           Data.Maybe
+import           Data.Text               (Text, split)
+import           GHC.Generics            (Generic)
+
+import           Cloud.Core.Bookmarkable
+import           Cloud.Utils
 
 
 data RootMenu = RootMenu ![BookmarkMenu]
@@ -37,7 +46,8 @@ jsonToBookmarks :: ByteString -> Either String [FirefoxBookmark]
 jsonToBookmarks = fmap getBookmarks . eitherDecode
   where
     getBookmarks (RootMenu ms) = filter p $ concatMap firefoxBookmarks ms
-    p b = maybe False (`notElem` firefoxDefaults) $ fbmTitle b
+    p b = isJust (fbmUri b) ||
+          maybe True (`notElem` firefoxDefaults) (fbmTitle b)
     firefoxDefaults = [ "Recently Bookmarked"
                       , "Recent Tags"
                       , "Mozilla Firefox"
@@ -50,14 +60,18 @@ firefoxBookmarks :: BookmarkMenu -> [FirefoxBookmark]
 firefoxBookmarks (BookmarkMenu _ bs) = bs
 
 instance Bookmarkable FirefoxBookmark where
-  bookmarkTitle        = fbmTitle
-  bookmarkDateAdded    =
-    fmap integerToPOSIXMicroSeconds . fbmDateAdded
-  bookmarkLastModified =
-    fmap integerToPOSIXMicroSeconds . fbmLastModified
-  bookmarkUri          = fbmUri
-  bookmarkTags         = let splitText = split (== ',')
-                         in maybe [] splitText . fbmTags
+  bookmarkTitle        = fromMaybe "Mozilla Firefox" . fbmTitle
+  bookmarkDateAdded    = toPOSIX . fbmDateAdded
+  bookmarkLastModified = toPOSIX . fbmLastModified
+  bookmarkUri          = fromJust . fbmUri
+  bookmarkTags         = maybe [] csvToList . fbmTags
+
+toPOSIX :: Maybe Integer -> POSIXMicroSeconds
+toPOSIX = maybe t integerToPOSIXMicroSeconds
+  where t = integerToPOSIXMicroSeconds 1414822173848154
+
+csvToList :: Text -> [Text]
+csvToList = split (== ',')
 
 instance FromJSON RootMenu where
   parseJSON (Object v) = RootMenu <$> v .: "children"

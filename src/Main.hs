@@ -5,27 +5,35 @@ module Main where
 
 
 import           Control.Error
-import           Control.Applicative         ((<$>))
-import           Data.Char                   (toLower)
 import           Control.Monad
+import           Data.Char        (toLower)
+import           Data.Text        (Text)
 import           System.Directory
-import           Control.Monad.Reader
 
-import Api.Core
-import BookmarkCloud.Config
-import FirefoxBookmark
-import App
+import           Api.Core
+import           FirefoxBookmark
 
+
+data TempTag = TempTag
+    { title        :: !Text
+    , dateAdded    :: !POSIXMicroSeconds
+    , lastModified :: !POSIXMicroSeconds
+    , urls         :: ![Text]
+    }
+
+instance Taggable TempTag where
+    tagTitle        = title
+    tagDateAdded    = dateAdded
+    tagLastModified = lastModified
+    tagBookmarkLinks = urls
 
 initRepo :: App ()
 initRepo = do
 
-    cfg <- config <$> ask
-    root <- rootDir <$> ask
+    bookdir <- bookmarkCloudDirectory
+    tagdir <- tagCloudDirectory
 
-    mapM_ createDir [ bookmarkCloudDirectoryPath cfg root
-                    , tagCloudDirectoryPath cfg root
-                    ]
+    mapM_ createDir [ bookdir, tagdir]
 
 createDir :: FilePath -> App ()
 createDir path = do
@@ -40,12 +48,29 @@ readConsole msg = do
   performIO $ putStrLn msg
   performIO getLine
 
+addBookmark :: Bookmarkable b => b -> App ()
+addBookmark b = insB >> mapM_ insT (getTags b)
+  where
+      insB = readBookmarkCloudWithDefault b
+               >>= insertBookmark b
+               >>= writeBookmarkCloud
+      insT t = readTagCloudWithDefault t
+                  >>= insertTag t
+                  >>= writeTagCloud
+
+getTags :: Bookmarkable b => b -> [TempTag]
+getTags b = map mkTag $ bookmarkTags b
+  where
+      mkTag t = TempTag t da dm [bookmarkUri b]
+      da = bookmarkDateAdded b
+      dm = bookmarkLastModified b
+
 main :: IO ()
 main = do
-    e <- getEnvironment "/home/valyakuttan/Downloads"
+    e <- getDefaultAppEnvironment "/home/valyakuttan/Downloads"
     void $ runApp initRepo e
-    r <- runApp (addBookmarks sampleBookmarks) e
+    let b = head sampleBookmarks
+    r <- runApp (addBookmark b) e
     case r of
         Left msg -> putStrLn msg
         Right _  -> putStrLn "ok"
-

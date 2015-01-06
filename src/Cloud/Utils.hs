@@ -1,12 +1,12 @@
 {-# LANGUAGE DeriveGeneric #-}
 ----------------------------------------------------------------------
 -- |
--- Module : BookmarkCloud.Utils
+-- Module : Cloud.Utils
 --
 ----------------------------------------------------------------------
 
 
-module BookmarkCloud.Utils (
+module Cloud.Utils (
       POSIXMicroSeconds
     , currentTimeInPOSIXMicroSeconds
     , integerToPOSIXMicroSeconds
