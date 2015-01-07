@@ -10,7 +10,6 @@ module Cloud.Core.Store
     (
       -- * The @Store@ type
       Store
-    , Storable (..)
 
       -- * Construction
     , emptyStore
@@ -19,12 +18,9 @@ module Cloud.Core.Store
       -- * Query
     , isEmpty
     , lookup
-    , member
 
       -- * Modification
-    , insert
     , insertWith
-    , delete
     , update
 
       -- * Conversion
@@ -68,8 +64,9 @@ import           Cloud.Core.Types    (Storable (..))
 --
 -- >>> let i2p = integerToPOSIXMicroSeconds
 -- >>> let mkTmpB t d m u = TmpB t (i2p d) (i2p m) u
---
-
+-- >>> let member a = maybe False (==a) . lookup a
+-- >>> let insert = insertWith const
+-- >>> let delete = update (const Nothing) 
 
 type Hash1 = Text
 
@@ -90,14 +87,6 @@ emptyStore = Store M.empty
 isEmpty :: Store a -> Bool
 isEmpty = M.null . store
 
--- | Is the item a member of the store.
---
--- >>> let a = mkTmpB "hello" 1 2 "world"
--- >>> a `member` emptyStore
--- False
-member :: Storable a => a -> Store a -> Bool
-member a = maybe False (a ==) . lookup a
-
 -- | Lookup the value a in the store.
 -- The function will return the corresponding value
 -- as (Just value), or Nothing if the key is not in the map.
@@ -117,40 +106,6 @@ lookup a = M.lookup (key a) . store
 singleton :: Storable a => a -> Store a
 singleton = Store . singletonL1
 
--- | Insert a new value to the Store.
---
--- >>> let a1 = mkTmpB "hello" 1 2 "world"
--- >>> let s = emptyStore
--- >>> isEmpty s
--- True
--- >>> a1 `member` s
--- False
--- >>> let a2 = mkTmpB "hello" 1 3 "world!!"
--- >>> a2 `member` s
--- False
--- >>> let s1 = insert a1 s
--- >>> isEmpty s1
--- False
--- >>> a1 `member` s1
--- True
--- >>> let s2 = insert a2 s1
--- >>> isEmpty s2
--- False
--- >>> a1 `member` s2
--- True
--- >>> a2 `member` s2
--- True
---
--- >>> let a3 = a1 { tt = "test title" }
--- >>> let s3 = insert a3 s2
--- >>> a3 `member` s3
--- True
--- >>> let (Just a3') = lookup a3 s3
--- >>> tt a3' == tt a3
--- True
-insert :: Storable a => a -> Store a -> Store a
-insert = insertWith const
-
 -- |  Insert with a function, combining new value and old value.
 -- @insertWith f a store@ will insert a into store if a does not
 -- exist in the store. If a does exist, the function will insert
@@ -161,8 +116,9 @@ insertWith :: Storable a => (a -> a -> a)
            -> Store a
 insertWith f a = Store . insertWithL1 f a . store
 
--- | Delete a value from the store. When value is not in the
--- store, the original store is returned.
+-- | The expression (update f a s) updates the value a (if it is
+-- in the store). If (f a) is Nothing, the element is deleted. If
+-- it is (Just y), then a is replaced by y.
 --
 -- >>> let a1 = mkTmpB "hello" 1 2 "world"
 -- >>> let s = emptyStore
@@ -177,29 +133,25 @@ insertWith f a = Store . insertWithL1 f a . store
 -- >>> store s' == store s
 -- True
 --
--- >>> let a2 = mkTmpB "hello" 1 3 "world!!"
--- >>> a2 `member` s
--- False
 -- >>> let s1 = insert a1 s
 -- >>> isEmpty s1
 -- False
 -- >>> a1 `member` s1
 -- True
--- >>> let s2 = insert a2 s1
--- >>> isEmpty s2
--- False
--- >>> a1 `member` s2
--- True
--- >>> a2 `member` s2
--- True
 --
--- >>> let s3 = a2 `delete` s2
+-- >>> let a2 = mkTmpB "hello" 1 3 "world!!"
+-- >>> a2 `member` s
+-- False
+--
+-- >>> let s3 = a2 `delete` s1
 -- >>> a2 `member` s3
 -- False
+--
 -- >>> a1 `member` s3
 -- True
 -- >>> store s3 == store s1
 -- True
+--
 -- >>> let s4 = a1 `delete` s3
 -- >>> a2 `member` s3
 -- False
@@ -207,41 +159,21 @@ insertWith f a = Store . insertWithL1 f a . store
 -- False
 -- >>> store s4 == store s
 -- True
-delete :: Storable a => a -> Store a -> Store a
-delete a = Store . deleteL1 a . store
-
--- | The expression (update f a s) updates the value a (if it is
--- in the store). If (f a) is Nothing, the element is deleted. If
--- it is (Just y), then a is replaced by y.
 --
--- >>> let a1 = mkTmpB "hello" 1 2 "world"
--- >>> let s = emptyStore
--- >>> isEmpty s
--- True
--- >>> a1 `member` s
+-- >>> let a3 = mkTmpB "hello!!!" 1 3 "world"
+-- >>> let s5 = update  (\_ -> Just a3) a1 s1
+-- >>> isEmpty s5
 -- False
---
--- >>> let s1 = insert a1 s
--- >>> isEmpty s1
--- False
--- >>> a1 `member` s1
--- True
--- >>> let a2 = mkTmpB "hello!!" 1 3 "world"
--- >>> let s2 = update  (\_ -> Just a2) a2 s1
--- >>> isEmpty s2
--- False
--- >>> a2 `member` s2
+-- >>> a3 `member` s5
 -- True
 --
--- >>> let s3 = update (\_ -> Nothing) a2 s2
--- >>> a2 `member` s3
+-- >>> let s6 = update (\_ -> Nothing) a3 s5
+-- >>> a3 `member` s6
 -- False
+-- >>> isEmpty s6
+-- True
 update :: Storable a => (a -> Maybe a) -> a -> Store a -> Store a
-update f a s = case lookup a s of
-                   Just x  -> case f x of
-                                  Just x' -> insert x' s
-                                  Nothing -> delete x s
-                   Nothing -> s
+update f a = Store . updateL1 f a . store
 
 -- |  Return all elements of the store.
 elems :: Storable a => Store a -> [a]
@@ -249,10 +181,10 @@ elems (Store s) = M.elems s
 
 -- | Build a store from a list.
 fromList :: Storable a => [a] -> Store a
-fromList = foldr insert emptyStore
+fromList = foldr (insertWith const) emptyStore
 
-deleteL1 :: Storable a => a -> MapL1 a -> MapL1 a
-deleteL1 a = M.delete (key a)
+updateL1 :: Storable a => (a -> Maybe a) -> a -> MapL1 a -> MapL1 a
+updateL1 f a = M.update f (key a)
 
 insertWithL1 :: Storable a => (a -> a -> a) -> a -> MapL1 a -> MapL1 a
 insertWithL1 f a = M.insertWith f (key a) a

@@ -27,7 +27,6 @@ module Cloud.Core.Engine
     , emptyCloud
 
       -- * Modification
-    , insert
     , insertWith
 
       -- * Querying
@@ -54,6 +53,7 @@ import           Cloud.Utils      (POSIXMicroSeconds)
 -- >>> import           Cloud.Utils (integerToPOSIXMicroSeconds)
 --
 -- >>> let i2p = integerToPOSIXMicroSeconds
+-- >>> let insert t = insertWith t const
 --
 -- >>> data BM = BM { tt :: !Text, tu :: !Text } deriving (Show)
 -- >>> instance Bookmarkable BM where { bookmarkTitle = tt; bookmarkDateAdded _ = i2p 0; bookmarkLastModified _ = i2p 10; bookmarkUri = tu; bookmarkTags _ = []; bookmarkType _ = Book }
@@ -116,23 +116,6 @@ insertWith ctime f b c = ins b
   where
       ins a = c & cloudItems %~ DS.insertWith f a &
               cloudLastModified .~ ctime
-
--- | Insert a new bookmark to the cloud.
---
--- >>> let c5 = i2p 5
--- >>> let i  = i2p 0
--- >>> let ts0 = emptyCloud Book i i
--- >>> let b1  = bookmarkableToBookmark (BM "t1" "u1")
--- >>> let ts1 = insert c5 b1 ts0
--- >>> ts1 == ts0
--- False
--- >>> ts1 ^. cloudLastModified == c5
--- True
--- >>> let (Just b1') = search b1 ts1
--- >>> b1' ^. title == b1 ^. title
--- True
-insert :: POSIXMicroSeconds -> Bookmark -> Cloud -> Cloud
-insert ctime = insertWith ctime const
 
 -- | Construct an empty  'Cloud'.
 emptyCloud :: BookmarkType      -- ^ Cloud type

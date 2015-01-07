@@ -1,5 +1,6 @@
-{-# LANGUAGE DeriveGeneric         #-}
-{-# LANGUAGE TemplateHaskell       #-}
+{-# LANGUAGE DeriveGeneric     #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE TemplateHaskell   #-}
 ----------------------------------------------------------------------
 -- |
 -- Module : Cloud.Core.Types
@@ -12,7 +13,7 @@ module Cloud.Core.Types
       -- * Basic types and constructors
       Bookmarkable (..)
     , Bookmark
-    , BookmarkTag (..)
+    , BookmarkTag
     , BookmarkType (..)
     , Storable (..)
 
@@ -23,16 +24,24 @@ module Cloud.Core.Types
     , uri
     , tags
 
-      -- * Smart Conversion to 'Bookmark'
+      -- * Lenses to work with 'BookmarkTag'
+    , tagTitle
+    , tagDateAdded
+    , tagLastModified
+    , tagBookmarkLinks
+
+      -- * Smart construcotrs to work with 'Bookmark' and BookmarkTag
     , bookmarkableToBookmark
+    , emptyBookmark
+    , emptyBookmarkTag
     ) where
 
 
 import           Control.Lens
-import           Data.Aeson       (FromJSON, ToJSON)
-import           Data.Function    (on)
-import           GHC.Generics     (Generic)
+import           Data.Aeson    (FromJSON, ToJSON)
+import           Data.Function (on)
 import           Data.Text
+import           GHC.Generics  (Generic)
 
 import           Cloud.Utils
 
@@ -68,11 +77,23 @@ data Bookmark = Bookmark {
 makeLenses ''Bookmark
 
 data BookmarkTag = BookmarkTag
-    { tagTitle         :: !Text
-    , tagDateAdded     :: !POSIXMicroSeconds
-    , tagLastModified  :: !POSIXMicroSeconds
-    , tagBookmarkLinks :: ![Text]
+    { _tagTitle         :: !Text
+    , _tagDateAdded     :: !POSIXMicroSeconds
+    , _tagLastModified  :: !POSIXMicroSeconds
+    , _tagBookmarkLinks :: ![Text]
     } deriving (Eq, Ord, Show)
+
+makeLenses ''BookmarkTag
+
+-- | Create an empty Bookmark
+emptyBookmark :: Bookmark
+emptyBookmark = Bookmark "" t t "" []
+  where t = integerToPOSIXMicroSeconds 0
+
+-- | Create an empty BookmarkTag
+emptyBookmarkTag :: BookmarkTag
+emptyBookmarkTag = BookmarkTag "" t t []
+  where t = integerToPOSIXMicroSeconds 0
 
 -- | Convert a 'Bookmarkable' to 'Bookmark'.
 bookmarkableToBookmark :: Bookmarkable b => b -> Bookmark
@@ -85,12 +106,20 @@ bookmarkableToBookmark b =  Bookmark
     }
 
 instance Bookmarkable BookmarkTag where
-    bookmarkTitle        = tagTitle
-    bookmarkDateAdded    = tagDateAdded
-    bookmarkLastModified = tagLastModified
-    bookmarkUri          = tagTitle
-    bookmarkTags         = tagBookmarkLinks
+    bookmarkTitle        = view tagTitle
+    bookmarkDateAdded    = view tagDateAdded
+    bookmarkLastModified = view tagLastModified
+    bookmarkUri          = view tagTitle
+    bookmarkTags         = view tagBookmarkLinks
     bookmarkType _       = Tag
+
+instance Bookmarkable Bookmark where
+    bookmarkTitle        = view title
+    bookmarkDateAdded    = view dateAdded
+    bookmarkLastModified = view lastModified
+    bookmarkUri          = view uri
+    bookmarkTags         = view tags
+    bookmarkType _       = Book
 
 instance ToJSON Bookmark
 instance FromJSON Bookmark

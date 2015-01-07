@@ -4,6 +4,7 @@
 module Main where
 
 
+import Data.Text (pack)
 import           Control.Error
 import           Control.Lens
 import           Control.Monad
@@ -15,6 +16,42 @@ import           System.Directory
 import           Api.Core
 import           FirefoxBookmark
 
+main :: IO ()
+main = do
+    e <- getDefaultAppEnvironment "/home/valyakuttan/Downloads"
+
+    let action = initRepo >> addBookmarks sampleBookmarks
+
+    r <- runApp action e
+    case r of
+        Left msg -> putStrLn msg
+        Right _  -> putStrLn "ok"
+
+searchBookmark :: String -> App (Maybe Bookmark)
+searchBookmark url = search b
+  where b = emptyBookmark & uri .~ pack url
+
+searchTag :: String -> App (Maybe Bookmark)
+searchTag t = search tg
+  where tg = emptyBookmarkTag & tagTitle .~ pack t
+
+addBookmark :: String -> String -> [String] -> App ()
+addBookmark bktitle bkurl bktags = do
+    t <- getCurrentTime
+    let b = emptyBookmark & title .~ pack bktitle &
+            dateAdded .~ t & lastModified .~ t &
+            uri .~ pack bkurl & tags .~ map pack bktags
+
+    addBookmarks [b]
+
+addTag :: String -> String -> App ()
+addTag tgtitle bookmarkurl = do
+    t <- getCurrentTime
+    let b = emptyBookmarkTag & tagTitle .~ pack tgtitle &
+            tagDateAdded .~ t & tagLastModified .~ t &
+            tagBookmarkLinks .~ [pack bookmarkurl]
+    
+    addBookmarks [b]
 
 initRepo :: App ()
 initRepo = do
@@ -46,14 +83,10 @@ groupBookmarks bs = do
         f  = (==) `on` snd
         g  = compare `on` snd
     return $ map (map fst) ys
-
-addBookmark :: Bookmarkable b => b -> App ()
-addBookmark b = addBookmarks [b]
-
+ 
 addBookmarks :: Bookmarkable b => [b] -> App ()
 addBookmarks bs = addBookmarks' bs >> addBookmarks' ts
-  where
-    ts = concatMap getTags bs
+  where ts = concatMap getTags bs
 
 addBookmarks' :: Bookmarkable b => [b] -> App ()
 addBookmarks' bs = do
@@ -81,17 +114,8 @@ updateBookmarks ctime b' b | null diff = b
 getTags :: Bookmarkable b => b -> [BookmarkTag]
 getTags b = map mkTag $ bookmarkTags b
   where
-      mkTag t = BookmarkTag t da dm [bookmarkUri b]
+      mkTag t = emptyBookmarkTag & tagTitle .~ t &
+                tagDateAdded .~ da & tagLastModified .~ dm &
+                tagBookmarkLinks .~ [bookmarkUri b]
       da = bookmarkDateAdded b
       dm = bookmarkLastModified b
-
-main :: IO ()
-main = do
-    e <- getDefaultAppEnvironment "/home/valyakuttan/Downloads"
-
-    let action = initRepo >> addBookmarks sampleBookmarks
-
-    r <- runApp action e
-    case r of
-        Left msg -> putStrLn msg
-        Right _  -> putStrLn "ok"

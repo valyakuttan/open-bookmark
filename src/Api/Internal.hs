@@ -25,7 +25,6 @@ module Api.Internal
     , search
 
       -- * Bookmark cloud manipulation
-    , insert
     , insertWith
 
       -- * Read/Write
@@ -82,14 +81,6 @@ insertWith f b c = do
         Just c' -> BC <$> return (path, c')
         Nothing -> return c
 
--- | Insert a bookmarkable into the cloud. Returns the modifed cloud
--- if the cloud is bookmark's destination and it is modified,
--- otherwise return original cloud.
-insert :: Bookmarkable b => b
-       -> BookmarkCloud
-       -> App BookmarkCloud
-insert = insertWith const
-
 -- | Read a cloud from disk. If the operation
 -- fails it returns a default cloud.
 readCloudWithDefault :: Bookmarkable b => b -> App BookmarkCloud
@@ -111,10 +102,14 @@ readCloud b = BC <$> pair
 writeCloud :: BookmarkCloud -> App ()
 writeCloud = uncurry writeJSON . getCloud
 
+-- | Retruns the path where this bookmarkable will be stored
 cloudFilePath :: Bookmarkable b => b -> App FilePath
 cloudFilePath b =
     Cfg.cloudFilePath <$> getConfig <*> getRootDir <*> pure b
 
+-- | Returns the home of this bookmark type. This is where
+-- the cloud files get stored. The bookmark type can either
+-- be 'Book' or 'Tag'.
 cloudDirectory :: BookmarkType -> App FilePath
 cloudDirectory t = Cfg.cloudDirectoryPath t <$> getConfig <*> getRootDir
 
@@ -133,11 +128,14 @@ performOp f b c = do
 
     go (path == path' && btype == c' ^. Engine.cloudType)
 
+-- | Returns the current 'Config' object
 getConfig :: App Config
 getConfig = config <$> currentEnvironment
 
+-- | Returns the root directory of the cloud home.
 getRootDir :: App FilePath
 getRootDir = rootDir <$> currentEnvironment
 
+-- | Returns current time.
 getCurrentTime :: App POSIXMicroSeconds
 getCurrentTime = currentTime <$> currentEnvironment
