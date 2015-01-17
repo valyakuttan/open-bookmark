@@ -14,15 +14,15 @@ module FirefoxBookmark
     ) where
 
 
-import           Control.Applicative     ((<$>), (<*>))
-import           Control.Monad           (mzero)
+import           Control.Applicative  ((<$>), (<*>))
+import           Control.Monad        (mzero)
 import           Data.Aeson
-import           Data.ByteString.Lazy    (ByteString)
+import           Data.ByteString.Lazy (ByteString)
 import           Data.Maybe
-import           Data.Text               (Text, split)
-import           GHC.Generics            (Generic)
+import           Data.Text            (Text, split)
+import           GHC.Generics         (Generic)
 
-import           Api.Core
+import           Api.Cloud
 
 
 
