@@ -11,5 +11,6 @@ module Api.Cloud
     ) where
 
 
+import           Cloud.App   as Cloud
 import           Cloud.Types as Cloud
 import           Cloud.Utils as Cloud hiding (textHash)

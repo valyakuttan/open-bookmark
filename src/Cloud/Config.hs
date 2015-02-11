@@ -1,5 +1,3 @@
-{-# LANGUAGE DeriveGeneric     #-}
-{-# LANGUAGE OverloadedStrings #-}
 ----------------------------------------------------------------------
 -- |
 -- Module : Cloud.Config
@@ -11,58 +9,52 @@ module Cloud.Config (
       Config (..)
     , defaultConfig
     , cloudFilePath
-    , cloudDirectoryPath
+    , bookmarkDirectoryPath
+    , tagDirectoryPath
     ) where
 
 
-import           Data.Aeson              (FromJSON, ToJSON)
-import           Data.Text               (Text)
-import qualified Data.Text               as T
-import           GHC.Generics            (Generic)
-import           System.FilePath         ((</>))
+import System.FilePath ((</>))
 import Data.Map.Strict
 
-import           Cloud.Core.Types
+import Cloud.Types
 
 
 data Config = Config {
-      cloudFilePrefix      :: Map Text Text
-    , cloudFileLocation    :: Map Text Text
-    , cloudHome            :: !Text
+      cloudFilePrefix      :: !(Map String String)
+    , cloudFileLocation    :: !(Map String FilePath)
+    , cloudHome            :: !FilePath
     , maximumNumberOfClouds :: Int
-    } deriving (Show, Generic)
+    } deriving (Show)
 
-cloudFilePath :: Bookmarkable b => Config
-                         -> FilePath
-                         -> b
-                         -> FilePath
-cloudFilePath cfg root b = dir </> fileName
+-- | Returns the file path  where this bookmarkable wil be stored.
+cloudFilePath :: Storable b => Config -> FilePath -> b -> FilePath
+cloudFilePath cfg root b = dir </> name
   where
-      dir      = cloudDirectoryPath t cfg root
-      fileName = prefix ++ show index ++ suffix
-      prefix = T.unpack (cloudFilePrefix cfg ! k)
-      index  = bookmarkHash b `mod` maximumNumberOfClouds cfg
+      dir    = cloudDirectoryPath t cfg root
+      name   = prefix ++ show index ++ suffix
+      prefix = cloudFilePrefix cfg ! t
+      index  = hash b `mod` maximumNumberOfClouds cfg
       suffix = ".json"
-      t      = bookmarkType b
-      k      = T.pack $ show t
+      t      = storeType b
 
-cloudDirectoryPath :: BookmarkType -> Config -> FilePath -> FilePath
-cloudDirectoryPath t cfg root = dir
+-- | Retrurns the directory where bookmarks are stored.
+bookmarkDirectoryPath :: Config -> FilePath -> FilePath
+bookmarkDirectoryPath = cloudDirectoryPath "book"
+
+-- | Retrurns the directory where tags are stored.
+tagDirectoryPath :: Config -> FilePath -> FilePath
+tagDirectoryPath = cloudDirectoryPath "tag"
+
+cloudDirectoryPath :: String -> Config -> FilePath -> FilePath
+cloudDirectoryPath ctype cfg root = dir
   where
-      dir  = ddir </> T.unpack (cloudFileLocation cfg ! k)
-      ddir = root </> T.unpack (cloudHome cfg)
-      k    = T.pack $ show t
-
-instance FromJSON Config
-instance ToJSON Config
+      dir  = ddir </> cloudFileLocation cfg ! ctype
+      ddir = root </> cloudHome cfg
 
 defaultConfig :: Config
 defaultConfig = Config
-    (fromList [(book, "bookmark-cloud-"), (tag, "tag-cloud-")])
-    (fromList [(book, "bookmarks"), (tag, "tags")])
+    (fromList [("book", "bookmark-cloud-"), ("tag", "tag-cloud-")])
+    (fromList [("book", "bookmarks"), ("tag", "tags")])
     "data"
     10
-  where
-      f = T.pack . show
-      book = f Book
-      tag = f Tag

@@ -15,6 +15,7 @@ module FirefoxBookmark
 
 
 import           Control.Applicative  ((<$>), (<*>))
+import           Control.Lens
 import           Control.Monad        (mzero)
 import           Data.Aeson
 import           Data.ByteString.Lazy (ByteString)
@@ -59,13 +60,14 @@ jsonToBookmarks = fmap getBookmarks . eitherDecode
 firefoxBookmarks :: BookmarkMenu -> [FirefoxBookmark]
 firefoxBookmarks (BookmarkMenu _ bs) = bs
 
-instance Bookmarkable FirefoxBookmark where
-  bookmarkTitle        = fromMaybe "Mozilla Firefox" . fbmTitle
-  bookmarkDateAdded    = toPOSIX . fbmDateAdded
-  bookmarkLastModified = toPOSIX . fbmLastModified
-  bookmarkUri          = fromJust . fbmUri
-  bookmarkTags         = maybe [] csvToList . fbmTags
-  bookmarkType _       = Book
+instance ToBookmark FirefoxBookmark where
+  toBookmark b =
+      emptyBookmark &
+      bookmarkTitle .~ fromMaybe "Mozilla Firefox" (fbmTitle b) &
+      bookmarkDateAdded .~ toPOSIX (fbmDateAdded b) &
+      bookmarkLastModified .~ toPOSIX (fbmLastModified b) &
+      bookmarkUrl .~ fromJust (fbmUri b) &
+      bookmarkTags .~ maybe [] csvToList (fbmTags b)
 
 toPOSIX :: Maybe Integer -> POSIXMicroSeconds
 toPOSIX = maybe t integerToPOSIXMicroSeconds

@@ -1,12 +1,12 @@
 {-# LANGUAGE OverloadedStrings #-}
 ----------------------------------------------------------------------
 -- |
--- Module : Cloud.Data.Store
+-- Module : Cloud.Store
 --
 ----------------------------------------------------------------------
 
 
-module Cloud.Core.Store
+module Cloud.Store
     (
       -- * The @Store@ type
       Store
@@ -30,50 +30,43 @@ module Cloud.Core.Store
 
 
 import           Control.Applicative
-import           Control.Monad
 import           Data.Aeson
-import           Data.Map.Strict     (Map)
-import qualified Data.Map.Strict     as M
+import           Data.Foldable       hiding (foldr)
+import           Data.HashMap.Lazy   (HashMap)
+import qualified Data.HashMap.Lazy   as M
 import           Data.Maybe
 import           Data.Text           (Text)
+import           Data.Traversable
 import           Prelude             hiding (lookup)
 
+import           Cloud.Types         (Storable (..))
 
-import           Cloud.Core.Types    (Storable (..))
 
 -- $setup
 --
--- >>> :set -XDeriveGeneric
 -- >>> :set -XOverloadedStrings
 --
--- >>> import Data.Function (on)
--- >>> import qualified Data.Text as T
--- >>> import GHC.Generics
---
+-- >>> import Control.Lens
 -- >>> import Cloud.Utils
+-- >>> import Cloud.Types
 --
--- >>> data TmpB = TmpB { tt :: !Text, td :: !POSIXMicroSeconds, tm :: !POSIXMicroSeconds, tu :: !Text } deriving (Show, Generic)
---
--- >>> instance Eq TmpB where { (==) = (==) `on` tu }
--- >>> instance Ord TmpB where { compare = compare `on` tu }
---
--- >>> let f  = T.pack . show
--- >>> instance FromJSON TmpB
--- >>> instance ToJSON TmpB
--- >>> instance Storable TmpB where { key = f . tu }
---
--- >>> let i2p = integerToPOSIXMicroSeconds
--- >>> let mkTmpB t d m u = TmpB t (i2p d) (i2p m) u
--- >>> let member a = maybe False (==a) . lookup a
--- >>> let insert = insertWith const
--- >>> let delete = update (const Nothing) 
+
 
 type Hash1 = Text
 
-type MapL1 a = Map Hash1 a
+type MapL1 a = HashMap Hash1 a
 
 data Store a = Store { store :: !(MapL1 a) }
                    deriving (Show, Eq)
+
+instance Functor Store where
+    fmap f (Store a) = Store $ fmap f a
+
+instance Foldable Store where
+   foldMap f (Store s) = foldMap f s
+
+instance Traversable Store where
+    traverse f (Store s) = Store <$> traverse f s
 
 -- | Construct an empty Store.
 --
@@ -89,18 +82,19 @@ isEmpty = M.null . store
 
 -- | Lookup the value a in the store.
 -- The function will return the corresponding value
--- as (Just value), or Nothing if the key is not in the map.
+-- as (Just value), or Nothing if the storeKey is not in the map.
 lookup :: Storable a => a -> Store a -> Maybe a
-lookup a = M.lookup (key a) . store
+lookup a = M.lookup (storeKey a) . store
 -- | A store with a single element.
 --
--- >>> let a1 = mkTmpB "hello" 1 2 "world"
+-- >>> let member a s = maybe False (== a) $ lookup a s
+-- >>> let a1 = emptyBookmark
 -- >>> let s = singleton a1
 -- >>> isEmpty s
 -- False
 -- >>> a1 `member` s
 -- True
--- >>> let a2 = mkTmpB "hello" 1 2 "world!"
+-- >>> let a2 = emptyBookmark & bookmarkUrl .~ "u1"
 -- >>> a2 `member` s
 -- False
 singleton :: Storable a => a -> Store a
@@ -110,6 +104,21 @@ singleton = Store . singletonL1
 -- @insertWith f a store@ will insert a into store if a does not
 -- exist in the store. If a does exist, the function will insert
 -- the value @f new_value old_value@ into the store.
+--
+-- >>> let member a s = maybe False (== a) $ lookup a s
+-- >>> let a1 = emptyBookmark
+-- >>> let s = emptyStore
+-- >>> isEmpty s
+-- True
+-- >>> a1 `member` s
+-- False
+--
+-- >>> let s1 = insertWith const a1 s
+-- >>> isEmpty s1
+-- False
+-- >>> a1 `member` s1
+-- True
+--
 insertWith :: Storable a => (a -> a -> a)
            -> a
            -> Store a
@@ -120,58 +129,26 @@ insertWith f a = Store . insertWithL1 f a . store
 -- in the store). If (f a) is Nothing, the element is deleted. If
 -- it is (Just y), then a is replaced by y.
 --
--- >>> let a1 = mkTmpB "hello" 1 2 "world"
+-- >>> let member a s = maybe False (== a) $ lookup a s
+-- >>> let a1 = emptyBookmark
 -- >>> let s = emptyStore
 -- >>> isEmpty s
 -- True
 -- >>> a1 `member` s
 -- False
 --
--- >>> let s' = a1 `delete` s
--- >>> a1 `member` s'
--- False
--- >>> store s' == store s
--- True
---
--- >>> let s1 = insert a1 s
+-- >>> let s1 = insertWith const a1 s
 -- >>> isEmpty s1
 -- False
 -- >>> a1 `member` s1
 -- True
 --
--- >>> let a2 = mkTmpB "hello" 1 3 "world!!"
--- >>> a2 `member` s
+-- >>> let s2 = update (const Nothing) a1 s1
+-- >>> isEmpty s2
+-- True
+-- >>> a1 `member` s2
 -- False
 --
--- >>> let s3 = a2 `delete` s1
--- >>> a2 `member` s3
--- False
---
--- >>> a1 `member` s3
--- True
--- >>> store s3 == store s1
--- True
---
--- >>> let s4 = a1 `delete` s3
--- >>> a2 `member` s3
--- False
--- >>> a1 `member` s4
--- False
--- >>> store s4 == store s
--- True
---
--- >>> let a3 = mkTmpB "hello!!!" 1 3 "world"
--- >>> let s5 = update  (\_ -> Just a3) a1 s1
--- >>> isEmpty s5
--- False
--- >>> a3 `member` s5
--- True
---
--- >>> let s6 = update (\_ -> Nothing) a3 s5
--- >>> a3 `member` s6
--- False
--- >>> isEmpty s6
--- True
 update :: Storable a => (a -> Maybe a) -> a -> Store a -> Store a
 update f a = Store . updateL1 f a . store
 
@@ -184,17 +161,19 @@ fromList :: Storable a => [a] -> Store a
 fromList = foldr (insertWith const) emptyStore
 
 updateL1 :: Storable a => (a -> Maybe a) -> a -> MapL1 a -> MapL1 a
-updateL1 f a = M.update f (key a)
+updateL1 f a = case f a of
+    Nothing -> M.delete (storeKey a)
+    Just a' -> M.adjust (const a') (storeKey a)
 
 insertWithL1 :: Storable a => (a -> a -> a) -> a -> MapL1 a -> MapL1 a
-insertWithL1 f a = M.insertWith f (key a) a
+insertWithL1 f a = M.insertWith f (storeKey a) a
 
 singletonL1 :: Storable a => a -> MapL1 a
-singletonL1 a = M.singleton (key a) a
+singletonL1 a = M.singleton (storeKey a) a
 
 instance FromJSON a => FromJSON (Store a) where
     parseJSON (Object v) = Store <$> v .: "store"
-    parseJSON _          = mzero
+    parseJSON _          = empty
 
 instance ToJSON a => ToJSON (Store a) where
     toJSON (Store s) = object ["store" .= s]

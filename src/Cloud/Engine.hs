@@ -1,5 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TupleSections     #-}
+
 ----------------------------------------------------------------------
 -- |
 -- Module : Cloud.Engine
@@ -9,20 +10,8 @@
 
 module Cloud.Engine
     (
-      -- * Basic Types to work with clouds
-      BookmarkCloud
-
-      -- * Construction
-    , emptyBookmarkCloud
-
-      -- * File system utilities
-    , cloudFilePath
-    , cloudDirectory
-
-      -- * Environment manipulation
-    , getConfig
-    , getRootDir
-    , getCurrentTime
+      -- * Hashed Cloud Type
+      HCloud
 
       -- * Query cloud
     , isEmpty
@@ -37,284 +26,120 @@ module Cloud.Engine
     , readCloudWithDefault
     , removeCloud
     , writeCloud
+
+      -- * Group operations
+    , applyOnList
     ) where
 
-
 import           Control.Applicative
-import           Control.Lens
-import           Data.Text           (pack)
+import           Control.Monad
+import           Data.Foldable
+import           Data.Function       (on)
+import           Data.List           (groupBy, sortBy)
+import           Data.Traversable    hiding (forM)
 
-import           App
-import qualified Cloud.Config        as Cfg
-import           Cloud.Core.Cloud    (Cloud)
-import qualified Cloud.Core.Cloud    as Cloud
+import           Cloud.App
+import           Cloud.Cloud         (Cloud)
+import qualified Cloud.Cloud         as Cloud
 import           Cloud.Types
 
 
--- $setup
---
--- >>> :set -XOverloadedStrings
--- >>> import Data.Text (Text)
--- >>> import           Cloud.Utils (integerToPOSIXMicroSeconds)
---
--- >>> let root = "/tmp"
--- >>> let i2p = integerToPOSIXMicroSeconds
--- >>> e <- getDefaultAppEnvironment root
--- >>> let appRun = flip runApp e
--- >>> let insert = insertWith const
--- >>> let delete = update (const Nothing)
--- >>> let member e c = appRun (maybe False (==e) <$> search e c)
---
--- >>> data BM = BM { tu :: !Text, ttgs :: ![Text] } deriving (Show)
--- >>> instance Bookmarkable BM where { bookmarkTitle _ = ""; bookmarkDateAdded _ = i2p 0; bookmarkLastModified _ = i2p 10; bookmarkUri = tu; bookmarkTags = ttgs; bookmarkType _ = Book }
---
--- >>> data BT = BT { tgt :: !Text, tgtgs :: ![Text] } deriving (Show)
--- >>> instance Bookmarkable BT where { bookmarkTitle = tgt; bookmarkDateAdded _ = i2p 0; bookmarkLastModified _ = i2p 10; bookmarkUri = tgt; bookmarkTags = tgtgs; bookmarkType _ = Tag }
---
--- >>> let dcfg = Cfg.defaultConfig
--- >>> let fpath b = Cfg.cloudFilePath dcfg root b
--- >>> let ecloud b = Cloud.emptyCloud (bookmarkType b) (i2p 0) (i2p 0)
--- >>> let emptyBCloud b = BC(fpath b, ecloud b)
+type HCloudF a = (FilePath, Cloud a)
 
+newtype HCloud a = HCloud { getPair :: HCloudF a }
+                   deriving (Show, Eq)
 
-newtype BookmarkCloud = BC { getCloud :: (FilePath, Cloud) }
+instance Functor HCloud where
+    fmap f (HCloud a) = HCloud $ fmap (fmap f) a
+
+instance Foldable HCloud where
+    foldMap f (HCloud (_,c)) = foldMap f c
+
+instance Traversable HCloud where
+    traverse f (HCloud (p,c)) = (\c' -> HCloud (p, c')) <$> traverse f c
 
 -- | Return 'True'if bookmark cloud is empty, 'False' otherwise.
---
--- test bookmark cloud
---
--- >>> let b1  = bookmarkableToBookmark (BM "u1" [])
---
--- >>> let bc1 = emptyBCloud b1
--- >>> isEmpty bc1
--- True
---
--- test tag cloud
---
--- >>> let t1 = bookmarkableToBookmark (BT "t1" [])
--- >>> let tc1 = emptyBCloud t1
--- >>> isEmpty tc1
--- True
---
-isEmpty :: BookmarkCloud -> Bool
-isEmpty (BC(_, c)) = Cloud.isEmpty c
+isEmpty :: Storable a => HCloud a -> Bool
+isEmpty = Cloud.isEmpty . snd . getPair
 
 -- | Search a bookmarkable in the cloud. Returns @('Just' v)@
 -- if present, or 'Nothing' otherwise.
---
--- test bookmark cloud
---
--- >>> let b1  = bookmarkableToBookmark (BM "u1" [])
---
--- >>> let bc1 = emptyBCloud b1
--- >>> isEmpty bc1
--- True
---
--- >>> (Right bc2) <- appRun (insert b1 bc1)
--- >>> isEmpty bc2
--- False
---
--- test search
---
--- >>> (Right (Just b1')) <- appRun (search b1 bc2)
--- >>> b1' == b1
--- True
---
--- test tag cloud
---
--- >>> let t1 = bookmarkableToBookmark (BT "t1" [])
--- >>> let tc1 = emptyBCloud t1
--- >>> isEmpty tc1
--- True
---
--- >>> (Right tc2) <- appRun (insert b1 tc1)
--- >>> isEmpty tc2
--- True
--- >>> (Right tc3) <- appRun (insert t1 tc1)
--- >>> isEmpty tc3
--- False
---
--- test search
---
--- >>> (Right (Just t1')) <- appRun (search t1 tc3)
--- >>> t1' == t1
--- True
--- >>> (Right (x)) <- appRun (search b1 tc3)
--- >>> x == Nothing
--- True
---
-search :: Bookmarkable b => b
-       -> BookmarkCloud
-       -> App (Maybe Bookmark)
-search b c = do
-    result <- performOp search' b c
-    case result of
-        Just r -> return r
-        Nothing -> return Nothing
+search :: Storable b => b -> HCloud b -> Maybe b
+search b = search' . snd . getPair
   where
-      search' = Cloud.search $ bookmarkableToBookmark b
+      search' = Cloud.search b
 
 -- | Insert with a function, combining new value and old value.
 -- @insertWith f b bookmarkcloud@ will insert b into bookmarkcloud
 -- if b does not exist in the bookmarkcloud. Otherwise, the
 -- function will insert the value @f new_value old_value@ into
 -- the bookmarkcloud.
--- test bookmark cloud
---
--- >>> let b1  = bookmarkableToBookmark (BM "u1" [])
---
--- >>> let bc1 = emptyBCloud b1
--- >>> isEmpty bc1
--- True
---
--- >>> (Right bc2) <- appRun (insert b1 bc1)
--- >>> isEmpty bc2
--- False
---
--- test tag cloud
---
--- >>> let t1 = bookmarkableToBookmark (BT "t1" [])
--- >>> let tc1 = emptyBCloud t1
--- >>> isEmpty tc1
--- True
---
--- >>> (Right tc2) <- appRun (insert b1 tc1)
--- >>> isEmpty tc2
--- True
--- >>> (Right tc3) <- appRun (insert t1 tc1)
--- >>> isEmpty tc3
--- False
---
--- test modification
---
--- >>> let b2 = b1 & tags %~ (++["test-tag"])
--- >>> (Right bc3) <- appRun (insertWith (\_ _  -> b2) b1 bc2)
--- >>> isEmpty bc3
--- False
---
--- >>> (Right (Just b2')) <- appRun (search b2 bc3)
--- >>> b2' ^. tags == b2 ^. tags
--- True
---
-insertWith :: Bookmarkable b => (Bookmark -> Bookmark -> Bookmark)
+insertWith :: Storable b =>(b -> b -> b)
            -> b
-           -> BookmarkCloud
-           -> App BookmarkCloud
-insertWith f b c = do
-    path <- cloudFilePath b
-    time <- getCurrentTime
-    let bj = bookmarkableToBookmark b
-
-    result <- performOp (Cloud.insertWith time f bj) b c
-    case result of
-        Just c' -> BC <$> return (path, c')
-        Nothing -> return c
+           -> HCloud b
+           -> App (HCloud b)
+insertWith f b hc@(HCloud(path, c)) = do
+    ok <- (== path) <$> cloudFilePath b
+    t  <- currentAppTime
+    let go | ok = return $ HCloud (path, Cloud.insertWith t f b c)
+           | otherwise = return hc
+    go
 
 -- | The expression @(update f b cloud)@ updates the value @b@
 -- (if it is in the cloud). If @(f b)@ is 'Nothing', the element
 -- is deleted. If it is @('Just' y)@, then @b@ is replaced by @y@.
---
--- >>> let b1  = bookmarkableToBookmark (BM "u1" [])
--- >>> let c1 = emptyBCloud b1
--- >>> isEmpty c1
--- True
---
--- >>> (Right c2) <- appRun (insert b1 c1)
--- >>> isEmpty c2
--- False
---
--- >>> (Right c3) <- appRun (delete b1 c2)
--- >>> isEmpty c3
--- True
---
--- >>> let b2 = b1 & title .~ "test title"
--- >>> (Right c4) <- appRun (update (const (Just b2)) b1 c2)
--- >>> isEmpty c4
--- False
--- >>> (Right (Just b2')) <- appRun (search b2 c4)
--- >>> b2' ^. title == b2 ^. title
--- True
---
-update :: Bookmarkable b => (Bookmark -> Maybe Bookmark)
-       -> b
-       -> BookmarkCloud
-       -> App BookmarkCloud
+update :: Storable b =>(b -> Maybe b) -> b -> HCloud b -> App (HCloud b)
 update f b c = do
-    path <- cloudFilePath b
-    time <- getCurrentTime
-    let bj = bookmarkableToBookmark b
+    t  <- currentAppTime
+    return' $ update' t <$> getPair c
+  where
+      update' t = Cloud.update t f b
+      return'   = return . HCloud
 
-    result <- performOp (Cloud.update time f bj) b c
-    case result of
-        Just c' -> BC <$> return (path, c')
-        Nothing -> return c
+-- | The expression @applyOnList g f xs@ will apply the function
+-- @f@ on list @xs@, @g@ is used to fetch the cloud corresponding
+-- to an item @x@ in @xs@.
+applyOnList :: Storable b => (b -> App (HCloud b))
+            -> (b -> HCloud b -> App (HCloud b))
+            -> [b]
+            -> App [HCloud b]
+applyOnList g f bs = do
+    xss <- forM bs $ \b ->
+        (b,) <$> cloudFilePath b
+
+    let bss = map (map fst) $ group' xss
+
+    forM bss $ \xs -> do
+        c <- g $ head xs
+        foldM (flip f) c xs
+  where
+      group' = groupBy ((==) `on` snd) . sortBy (compare `on` snd)
 
 -- | Read a cloud from disk. If the operation
--- fails it returns a default cloud.
-readCloudWithDefault :: Bookmarkable b => b -> App BookmarkCloud
-readCloudWithDefault b = f <$> emptyBookmarkCloud b <*> readCloud b
-  where f = flip maybe id
+-- fails it returns an empty cloud.
+readCloudWithDefault :: Storable b => b -> App (HCloud b)
+readCloudWithDefault b = do
+    x <- readCloud b
+    p <- cloudFilePath b
+    t <- currentAppTime
+    let emptyCloud = HCloud(p, Cloud.emptyCloud t t)
+    case x of
+        Nothing -> return emptyCloud
+        Just c  -> return c
 
 -- | Read a cloud from disk.
-readCloud :: Bookmarkable b => b -> App (Maybe BookmarkCloud)
+readCloud :: Storable b => b -> App (Maybe (HCloud b))
 readCloud b = do
     path <- cloudFilePath b
-    js   <- readJSON path
-    return $ BC <$> (path,) <$> js
+    x    <- readJSON path
+    case x of
+        Nothing -> return Nothing
+        Just c  -> return $ Just $ HCloud(path, c)
 
 -- | Remove the json file associate with the cloud.
-removeCloud :: BookmarkCloud -> App ()
-removeCloud (BC(path,_)) = removeJSON path
+removeCloud :: HCloud b -> App ()
+removeCloud = removeJSON . fst . getPair
 
 -- | Write a cloud back to disk.
-writeCloud :: BookmarkCloud -> App ()
-writeCloud = uncurry writeJSON . getCloud
-
--- | Retruns the path where this bookmarkable will be stored
-cloudFilePath :: Bookmarkable b => b -> App FilePath
-cloudFilePath b =
-    Cfg.cloudFilePath <$> getConfig <*> getRootDir <*> pure b
-
--- | Returns the home of this bookmark type. This is where
--- the cloud files get stored. The bookmark type can either
--- be 'Book' or 'Tag'.
-cloudDirectory :: BookmarkType -> App FilePath
-cloudDirectory t = Cfg.cloudDirectoryPath t <$> getConfig <*> getRootDir
-
-performOp :: Bookmarkable b => (Cloud -> a)
-          -> b
-          -> BookmarkCloud
-          -> App (Maybe a)
-performOp f b c = do
-    let (path,c') = getCloud c
-        btype = pack (show (bookmarkType b))
-
-    path' <- cloudFilePath b
-
-    let go ok | ok = return $ Just $ f c'
-              | otherwise = return Nothing
-
-    go (path == path' && btype == c' ^. Cloud.cloudType)
-
-emptyBookmarkCloud :: Bookmarkable b => b -> App BookmarkCloud
-emptyBookmarkCloud b = do
-    time <- getCurrentTime
-    path <- cloudFilePath b
-
-    return $ BC (path, Cloud.emptyCloud (bookmarkType b) time time)
-
--- | Returns the current 'Config' object
-getConfig :: App Config
-getConfig = config <$> currentEnvironment
-
--- | Returns the root directory of the cloud home.
-getRootDir :: App FilePath
-getRootDir = rootDir <$> currentEnvironment
-
-
--- | Returns current time.
-getCurrentTime :: App POSIXMicroSeconds
-getCurrentTime = currentTime <$> currentEnvironment
-
-instance Eq BookmarkCloud where
-  BC(_, c1) == BC(_, c2) = c1 == c2
+writeCloud :: Storable b => HCloud b -> App ()
+writeCloud = uncurry writeJSON . getPair
