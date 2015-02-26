@@ -2,12 +2,12 @@
 {-# LANGUAGE OverloadedStrings #-}
 ----------------------------------------------------------------------
 -- |
--- Module : FirefoxBookmark
+-- Module : Client.FirefoxBookmark
 --
 ----------------------------------------------------------------------
 
 
-module FirefoxBookmark
+module Client.FirefoxBookmark
     (
       jsonToBookmarks
     , sampleBookmarks
@@ -47,7 +47,7 @@ jsonToBookmarks :: ByteString -> Either String [FirefoxBookmark]
 jsonToBookmarks = fmap getBookmarks . eitherDecode
   where
     getBookmarks (RootMenu ms) = filter p $ concatMap firefoxBookmarks ms
-    p b = isJust (fbmUri b) ||
+    p b = isJust (fbmUri b) &&
           maybe True (`notElem` firefoxDefaults) (fbmTitle b)
     firefoxDefaults = [ "Recently Bookmarked"
                       , "Recent Tags"
