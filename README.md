@@ -1,4 +1,4 @@
 open-bookmarks
 ==============
 
-Store your bookmarks in a public git repo
+Delicious like service built on top of Github.
