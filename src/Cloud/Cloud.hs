@@ -34,17 +34,15 @@ module Cloud.Cloud
     ) where
 
 
-import           Control.Applicative
 import           Control.Lens
-import           Data.Aeson          (FromJSON, ToJSON)
-import           Data.Foldable
-import           Data.Function       (on)
-import           GHC.Generics        (Generic)
+import           Data.Aeson    (FromJSON, ToJSON)
+import           Data.Function (on)
+import           GHC.Generics  (Generic)
 
-import           Cloud.Store         (Store)
-import qualified Cloud.Store         as DS
+import           Cloud.Store   (Store)
+import qualified Cloud.Store   as DS
 import           Cloud.Types
-import           Cloud.Utils         (POSIXMicroSeconds)
+import           Cloud.Utils   (POSIXMicroSeconds)
 
 
 -- $setup

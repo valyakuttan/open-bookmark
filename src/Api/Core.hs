@@ -29,10 +29,9 @@ module Api.Core
      )  where
 
 
-import           Control.Applicative
 import           Control.Lens
-import           Data.List           ((\\))
-import           Data.Text           (Text, pack)
+import           Data.List    ((\\))
+import           Data.Text    (Text, pack)
 
 import           Api.Cloud
 import           Cloud.Engine

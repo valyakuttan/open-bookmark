@@ -16,7 +16,6 @@ module Cloud.Utils (
     ) where
 
 
-import           Control.Applicative   ((<$>))
 import           Data.Aeson            (FromJSON, ToJSON)
 import           Data.Char             (ord)
 import           Data.List             (foldl')

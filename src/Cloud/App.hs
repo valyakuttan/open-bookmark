@@ -34,7 +34,7 @@ module Cloud.App
     , readConsole
     ) where
 
-import           Control.Applicative
+
 import           Control.Error
 import           Control.Monad.Reader
 import           Control.Monad.State

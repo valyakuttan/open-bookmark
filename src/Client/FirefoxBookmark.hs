@@ -14,7 +14,6 @@ module Client.FirefoxBookmark
     ) where
 
 
-import           Control.Applicative  ((<$>), (<*>))
 import           Control.Lens
 import           Control.Monad        (mzero)
 import           Data.Aeson
