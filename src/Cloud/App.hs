@@ -34,7 +34,6 @@ module Cloud.App
     , readConsole
     ) where
 
-
 import           Control.Applicative
 import           Control.Error
 import           Control.Monad.Reader
@@ -56,7 +55,7 @@ data Env = Env
     }
 
 newtype App a = App {
-    rApp :: StateT POSIXMicroSeconds (ReaderT Env (EitherT String IO)) a
+    rApp :: StateT POSIXMicroSeconds (ReaderT Env (ExceptT String IO)) a
     }
 
 instance Functor App where
@@ -79,7 +78,7 @@ updateClock = do
 runApp :: App a -> Env -> IO (Either String a)
 runApp app env = do
     t <- currentTimeInPOSIXMicroSeconds
-    runEitherT (runReaderT (evalStateT (rApp app) t) env)
+    runExceptT (runReaderT (evalStateT (rApp app) t) env)
 
 -- | Retruns the path where this bookmarkable will be stored
 cloudFilePath :: Storable b => b -> App FilePath
@@ -132,11 +131,11 @@ readJSON :: FromJSON a => FilePath -> App (Maybe a)
 readJSON path = App $ do
     js <- lift $ lift $ tryIOAction (readJSON' path)
     case js of
-        Left msg -> lift $ lift (left msg)
         Right a  -> return a
+        l -> lift $ lift $ hoistEither l
 
 readJSON' :: FromJSON a => FilePath -> IO (Either String (Maybe a))
-readJSON' path = runEitherT action
+readJSON' path = runExceptT action
   where
       action = do
           exits <- tryIOAction (doesFileExist path)
@@ -158,5 +157,5 @@ removeJSON path = performIO $ do
 performIO :: IO a -> App a
 performIO = App . lift . lift . tryIOAction
 
-tryIOAction :: IO a -> EitherT String IO a
+tryIOAction :: IO a -> ExceptT String IO a
 tryIOAction = fmapLT show . tryIO
