@@ -22,18 +22,18 @@ executable open-bookmarks
   -- other-modules:       
   -- other-extensions:    
   build-depends:       aeson
-                     , base >= 4.7
+                     , base >= 4.8
                      , bytestring
                      , containers
                      , directory
-                     , errors
+                     , errors >= 2.0
                      , filepath
-                     , lens
                      , mtl
+                     , lens
                      , optparse-applicative
                      , random
                      , text
-                     , time >= 1.4 && < 1.5
+                     , time
                      , transformers
                      , unordered-containers
 
@@ -78,13 +78,13 @@ Test-Suite              spec
                       , bytestring
                       , containers
                       , directory
-                      , errors >= 1.4
+                      , errors >= 2.0
                       , filepath
                       , hspec >= 2.1.2
                       , lens
                       , mtl
                       , text
-                      , time >= 1.4 && < 1.5
+                      , time
                       , transformers >= 0.3
                       , unordered-containers
 
