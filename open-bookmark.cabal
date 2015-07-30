@@ -3,7 +3,7 @@
 
 name:                open-bookmarks
 
-version:             0.2.0.0
+version:             0.3.0.0
 -- synopsis:            
 -- description:         
 -- license:             
@@ -15,27 +15,27 @@ maintainer:          kuttixxxl@gmail.com
 -- category:            
 build-type:          Simple
 -- extra-source-files:  
-cabal-version:       >=1.18
+cabal-version:       >= 1.22
 
 executable open-bookmarks
   main-is:             Main.hs
   -- other-modules:       
   -- other-extensions:    
-  build-depends:       aeson
-                     , base >= 4.8
+  build-depends:       aeson >= 0.9.0.1
+                     , base >= 4.8.1
                      , bytestring
                      , containers
                      , directory
-                     , errors >= 2.0
+                     , errors >= 2.0.0
                      , filepath
-                     , mtl
-                     , lens
-                     , optparse-applicative
-                     , random
-                     , text
+                     , mtl >= 2.2.1
+                     , lens >= 4.12.2
+                     , optparse-applicative >= 0.11.0.2
+                     , random >= 1.1
+                     , text >= 1.2.1.2
                      , time
                      , transformers
-                     , unordered-containers
+                     , unordered-containers >= 0.2.5.1
 
   hs-source-dirs:      src
 
@@ -55,7 +55,7 @@ Test-Suite             doctest
   main-is:             doctests.hs
 
   build-depends:       QuickCheck >= 2.0
-                     , base >=4.7
+                     , base
                      , directory
                      , doctest >= 0.9.3
                      , filepath
