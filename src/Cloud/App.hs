@@ -28,6 +28,7 @@ module Cloud.App
 
       -- * File system utilities
     , cloudFilePath
+    , appConfigDirectoryPath
     , bookmarkDirectoryPath
     , tagDirectoryPath
     , createAppDirectory
@@ -40,7 +41,8 @@ import           Control.Monad.Reader
 import           Control.Monad.State
 import           Data.Aeson
 import qualified Data.ByteString.Lazy as B
-import           Data.Char            (toLower)
+import           Data.Configurator (load)
+import           Data.Configurator.Types (Worth (..))
 import           System.Directory
 
 import           Cloud.Config         (Config)
@@ -82,18 +84,25 @@ runApp app env = do
 
 -- | Retruns the path where this bookmarkable will be stored
 cloudFilePath :: Storable b => b -> App FilePath
-cloudFilePath b =
-    Cfg.cloudFilePath <$> currentAppConfig <*> currentAppRoot <*> pure b
+cloudFilePath b = do
+    cfg <- currentAppConfig
+    root   <- currentAppRoot
+    performIO $ Cfg.cloudFilePath cfg root b
 
--- | Returns the directory where bookmarks will be stored.
 bookmarkDirectoryPath :: App FilePath
-bookmarkDirectoryPath =
-    Cfg.bookmarkDirectoryPath <$> currentAppConfig <*> currentAppRoot
+bookmarkDirectoryPath = do
+    root <- currentAppRoot
+    return $ Cfg.bookmarkDirectoryPath root
 
--- | Returns the directory where tags will be stored.
 tagDirectoryPath :: App FilePath
-tagDirectoryPath =
-    Cfg.tagDirectoryPath <$> currentAppConfig <*> currentAppRoot
+tagDirectoryPath = do
+    root <- currentAppRoot
+    return $ Cfg.tagDirectoryPath root
+
+appConfigDirectoryPath :: App FilePath
+appConfigDirectoryPath = do
+    root <- currentAppRoot
+    return $ Cfg.configDirectoryPath root
 
 -- | Returns the current 'Config' object
 currentAppConfig :: App Config
@@ -111,21 +120,20 @@ currentAppTime = App get
 currentAppEnvironment :: App Env
 currentAppEnvironment = App ask
 
-defaultAppEnvironment :: FilePath -> IO Env
-defaultAppEnvironment = return . Env Cfg.defaultConfig
+defaultAppEnvironment :: FilePath -> FilePath -> IO Env
+defaultAppEnvironment root configFile = do
+    cfg <- load [Optional configFile]
+    return $ Env cfg root
 
 createAppDirectory :: FilePath -> App ()
 createAppDirectory path = do
-  exists <- performIO $ doesDirectoryExist path
-  unless exists $ do
-    reply <- readConsole ("Create Directory " ++ path ++ " [Y]es/No : ")
-    let ok = toLower (headDef 'y' reply) == 'y'
-    when ok $ performIO $ createDirectoryIfMissing True path
+    exists <- performIO $ doesDirectoryExist path
+    unless exists $ performIO $ createDirectoryIfMissing True path
 
 readConsole :: String -> App String
 readConsole msg = do
-  performIO $ putStrLn msg
-  performIO getLine
+    performIO $ putStrLn msg
+    performIO getLine
 
 readJSON :: FromJSON a => FilePath -> App (Maybe a)
 readJSON path = App $ do

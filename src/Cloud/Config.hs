@@ -1,3 +1,5 @@
+{-# LANGUAGE OverloadedStrings #-}
+
 ----------------------------------------------------------------------
 -- |
 -- Module : Cloud.Config
@@ -6,55 +8,60 @@
 
 
 module Cloud.Config (
-      Config (..)
-    , defaultConfig
+      Config
     , cloudFilePath
     , bookmarkDirectoryPath
     , tagDirectoryPath
+    , configDirectoryPath
     ) where
 
 
+import Data.Configurator
+import Data.Configurator.Types (Config)
 import System.FilePath ((</>))
-import Data.Map.Strict
 
 import Cloud.Types
 
 
-data Config = Config {
-      cloudFilePrefix      :: !(Map String String)
-    , cloudFileLocation    :: !(Map String FilePath)
-    , cloudHome            :: !FilePath
-    , maximumNumberOfClouds :: Int
-    } deriving (Show)
+-- | Returns the file path  where this item wil be stored.
+cloudFilePath :: Storable b => Config -> FilePath -> b -> IO FilePath
+cloudFilePath config root b = case storeType b of
+    "book" -> do
+        let dir = bookmarkDirectoryPath root
+        p   <- lookupDefault "bookmark-cloud-" config bookPrefix
+        i   <- cloudIndex config b
+        let name = p ++ show i ++ suffix
+        return (dir </> name)
 
--- | Returns the file path  where this bookmarkable wil be stored.
-cloudFilePath :: Storable b => Config -> FilePath -> b -> FilePath
-cloudFilePath cfg root b = dir </> name
+    "tag" -> do
+        let dir = tagDirectoryPath root
+        p <- lookupDefault "tag-cloud-" config tagPrefix
+        i  <- cloudIndex config b
+        let name = p ++ show i ++ suffix
+        return (dir </> name)
+
+    _      -> error "Unknown Storable"
+
   where
-      dir    = cloudDirectoryPath t cfg root
-      name   = prefix ++ show index ++ suffix
-      prefix = cloudFilePrefix cfg ! t
-      index  = hash b `mod` maximumNumberOfClouds cfg
-      suffix = ".json"
-      t      = storeType b
+    bookPrefix = "bookmark_cloud_prefix"
+    tagPrefix  = "tag_cloud_prefix"
+    suffix     = ".json"
+
+cloudIndex :: Storable b => Config -> b -> IO Int
+cloudIndex config b =
+    (hash b `mod`) <$> lookupDefault 500 config "max_number_of_clouds"
 
 -- | Retrurns the directory where bookmarks are stored.
-bookmarkDirectoryPath :: Config -> FilePath -> FilePath
-bookmarkDirectoryPath = cloudDirectoryPath "book"
+bookmarkDirectoryPath :: FilePath -> FilePath
+bookmarkDirectoryPath root = cloudHome root </> "bookmarks"
 
 -- | Retrurns the directory where tags are stored.
-tagDirectoryPath :: Config -> FilePath -> FilePath
-tagDirectoryPath = cloudDirectoryPath "tag"
+tagDirectoryPath :: FilePath -> FilePath
+tagDirectoryPath root = cloudHome root </> "tags"
 
-cloudDirectoryPath :: String -> Config -> FilePath -> FilePath
-cloudDirectoryPath ctype cfg root = dir
-  where
-      dir  = ddir </> cloudFileLocation cfg ! ctype
-      ddir = root </> cloudHome cfg
+configDirectoryPath :: FilePath -> FilePath
+configDirectoryPath root = root </> "config"
 
-defaultConfig :: Config
-defaultConfig = Config
-    (fromList [("book", "bookmark-cloud-"), ("tag", "tag-cloud-")])
-    (fromList [("book", "bookmarks"), ("tag", "tags")])
-    "data"
-    10
+-- | Retrurns the directory where data will be stored.
+cloudHome :: FilePath -> FilePath
+cloudHome root =  root </> "data"
