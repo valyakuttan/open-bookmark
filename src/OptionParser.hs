@@ -27,8 +27,8 @@ type Url = String
 type Tag = String
 
 data Client = FireFox
-             | Chrome
-             deriving (Show)
+            | Unknown
+            deriving (Show)
 
 data Options = Options
     { repoRoot   :: FilePath
@@ -95,7 +95,6 @@ importOptions :: Parser Command
 importOptions = ImportBookmarks <$> files
 
 toClient :: String -> Client
-toClient "chrome" = Chrome
 toClient "firefox" = FireFox
 toClient c         = error ("Unknown Client " ++ c)
 

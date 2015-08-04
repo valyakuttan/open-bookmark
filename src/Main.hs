@@ -8,7 +8,7 @@ import           System.FilePath ((</>))
 
 import           Api.Cloud
 import           Api.Core
-import           Client.FirefoxBookmark
+import           Client.Firefox
 import           OptionParser
 
 
@@ -55,7 +55,7 @@ importBookmarks' c fs = forM_ fs $ \f -> do
   where
       import' = importBookmarks readCloudWithDefault readCloudWithDefault
       parseJson FireFox = jsonToBookmarks
-      parseJson _       = jsonToBookmarks
+      parseJson _       = error "Unknown Client"
 
 removeTag' :: String -> String -> App ()
 removeTag' tag url = do

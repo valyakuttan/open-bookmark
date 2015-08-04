@@ -2,12 +2,12 @@
 {-# LANGUAGE OverloadedStrings #-}
 ----------------------------------------------------------------------
 -- |
--- Module : Client.FirefoxBookmark
+-- Module : Client.Firefox
 --
 ----------------------------------------------------------------------
 
 
-module Client.FirefoxBookmark
+module Client.Firefox
     (
       jsonToBookmarks
     , sampleBookmarks
