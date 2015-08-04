@@ -31,16 +31,15 @@ module Cloud.Engine
     , applyOnList
     ) where
 
-import           Control.Applicative
+
 import           Control.Monad
-import           Data.Foldable
-import           Data.Function       (on)
-import           Data.List           (groupBy, sortBy)
-import           Data.Traversable    hiding (forM)
+import           Data.Function (on)
+import           Data.List     (groupBy, sortBy)
+
 
 import           Cloud.App
-import           Cloud.Cloud         (Cloud)
-import qualified Cloud.Cloud         as Cloud
+import           Cloud.Cloud   (Cloud)
+import qualified Cloud.Cloud   as Cloud
 import           Cloud.Types
 
 

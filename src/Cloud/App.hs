@@ -28,6 +28,7 @@ module Cloud.App
 
       -- * File system utilities
     , cloudFilePath
+    , appConfigDirectoryPath
     , bookmarkDirectoryPath
     , tagDirectoryPath
     , createAppDirectory
@@ -35,13 +36,13 @@ module Cloud.App
     ) where
 
 
-import           Control.Applicative
 import           Control.Error
 import           Control.Monad.Reader
 import           Control.Monad.State
 import           Data.Aeson
 import qualified Data.ByteString.Lazy as B
-import           Data.Char            (toLower)
+import           Data.Configurator (load)
+import           Data.Configurator.Types (Worth (..))
 import           System.Directory
 
 import           Cloud.Config         (Config)
@@ -56,7 +57,7 @@ data Env = Env
     }
 
 newtype App a = App {
-    rApp :: StateT POSIXMicroSeconds (ReaderT Env (EitherT String IO)) a
+    rApp :: StateT POSIXMicroSeconds (ReaderT Env (ExceptT String IO)) a
     }
 
 instance Functor App where
@@ -79,22 +80,29 @@ updateClock = do
 runApp :: App a -> Env -> IO (Either String a)
 runApp app env = do
     t <- currentTimeInPOSIXMicroSeconds
-    runEitherT (runReaderT (evalStateT (rApp app) t) env)
+    runExceptT (runReaderT (evalStateT (rApp app) t) env)
 
 -- | Retruns the path where this bookmarkable will be stored
 cloudFilePath :: Storable b => b -> App FilePath
-cloudFilePath b =
-    Cfg.cloudFilePath <$> currentAppConfig <*> currentAppRoot <*> pure b
+cloudFilePath b = do
+    cfg <- currentAppConfig
+    root   <- currentAppRoot
+    performIO $ Cfg.cloudFilePath cfg root b
 
--- | Returns the directory where bookmarks will be stored.
 bookmarkDirectoryPath :: App FilePath
-bookmarkDirectoryPath =
-    Cfg.bookmarkDirectoryPath <$> currentAppConfig <*> currentAppRoot
+bookmarkDirectoryPath = do
+    root <- currentAppRoot
+    return $ Cfg.bookmarkDirectoryPath root
 
--- | Returns the directory where tags will be stored.
 tagDirectoryPath :: App FilePath
-tagDirectoryPath =
-    Cfg.tagDirectoryPath <$> currentAppConfig <*> currentAppRoot
+tagDirectoryPath = do
+    root <- currentAppRoot
+    return $ Cfg.tagDirectoryPath root
+
+appConfigDirectoryPath :: App FilePath
+appConfigDirectoryPath = do
+    root <- currentAppRoot
+    return $ Cfg.configDirectoryPath root
 
 -- | Returns the current 'Config' object
 currentAppConfig :: App Config
@@ -112,31 +120,30 @@ currentAppTime = App get
 currentAppEnvironment :: App Env
 currentAppEnvironment = App ask
 
-defaultAppEnvironment :: FilePath -> IO Env
-defaultAppEnvironment = return . Env Cfg.defaultConfig
+defaultAppEnvironment :: FilePath -> FilePath -> IO Env
+defaultAppEnvironment root configFile = do
+    cfg <- load [Optional configFile]
+    return $ Env cfg root
 
 createAppDirectory :: FilePath -> App ()
 createAppDirectory path = do
-  exists <- performIO $ doesDirectoryExist path
-  unless exists $ do
-    reply <- readConsole ("Create Directory " ++ path ++ " [Y]es/No : ")
-    let ok = toLower (headDef 'y' reply) == 'y'
-    when ok $ performIO $ createDirectoryIfMissing True path
+    exists <- performIO $ doesDirectoryExist path
+    unless exists $ performIO $ createDirectoryIfMissing True path
 
 readConsole :: String -> App String
 readConsole msg = do
-  performIO $ putStrLn msg
-  performIO getLine
+    performIO $ putStrLn msg
+    performIO getLine
 
 readJSON :: FromJSON a => FilePath -> App (Maybe a)
 readJSON path = App $ do
     js <- lift $ lift $ tryIOAction (readJSON' path)
     case js of
-        Left msg -> lift $ lift (left msg)
         Right a  -> return a
+        l -> lift $ lift $ hoistEither l
 
 readJSON' :: FromJSON a => FilePath -> IO (Either String (Maybe a))
-readJSON' path = runEitherT action
+readJSON' path = runExceptT action
   where
       action = do
           exits <- tryIOAction (doesFileExist path)
@@ -158,5 +165,5 @@ removeJSON path = performIO $ do
 performIO :: IO a -> App a
 performIO = App . lift . lift . tryIOAction
 
-tryIOAction :: IO a -> EitherT String IO a
+tryIOAction :: IO a -> ExceptT String IO a
 tryIOAction = fmapLT show . tryIO

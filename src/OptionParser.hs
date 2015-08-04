@@ -10,7 +10,7 @@ module OptionParser
     (
       Options
     , Command (..)
-    , Browser (..)
+    , Client (..)
     , programOptions
     , repoRoot
     , browser
@@ -26,17 +26,18 @@ import           System.Directory
 type Url = String
 type Tag = String
 
-data Browser = FireFox
-             | Chrome
-             deriving (Show)
+data Client = FireFox
+            | Unknown
+            deriving (Show)
 
 data Options = Options
     { repoRoot   :: FilePath
-    , browser    :: Browser
+    , browser    :: Client
     , optCommand :: Command
     } deriving (Show)
 
-data Command = AddUrl String Url [Tag]
+data Command = InitRepo
+             | AddUrl String Url [Tag]
              | SearchUrl Url
              | SearchTag Tag
              | AttachTag Tag Url
@@ -61,12 +62,13 @@ execOptions run = do
 
 programOptions :: FilePath -> Parser Options
 programOptions root = Options <$> rootDirOption root
-                      <*> browserOption
+                      <*> clientOption
                       <*> commands
 
 commands :: Parser Command
-commands = subparser
-           ( command "add" (info addUrlOptions
+commands = subparser ( command "init" (info initOptions
+           ( progDesc "Initialize the repository" ))
+           <> command "add" (info addUrlOptions
            ( progDesc "Add a url to the repository" ))
            <> command "search-url" (info searchUrlOptions
            ( progDesc "Search a url in the repository" ))
@@ -81,8 +83,10 @@ commands = subparser
            <> command "import" (info importOptions
            ( progDesc "Import  bookmarks from a collection of files" ))
            <> command "sync" (info syncOptions
-           ( progDesc "Sync repository with remote server"))
-           )
+           ( progDesc "Sync repository with remote server")))
+
+initOptions :: Parser Command
+initOptions = pure InitRepo
 
 syncOptions :: Parser Command
 syncOptions = pure SyncBookmarks
@@ -90,17 +94,17 @@ syncOptions = pure SyncBookmarks
 importOptions :: Parser Command
 importOptions = ImportBookmarks <$> files
 
-toBrowser :: String -> Browser
-toBrowser b | b == "chrome" = Chrome
-            | otherwise = FireFox
+toClient :: String -> Client
+toClient "firefox" = FireFox
+toClient c         = error ("Unknown Client " ++ c)
 
-browserOption :: Parser Browser
-browserOption = toBrowser <$> strOption
-          ( long "browser"
-          <> short 'b'
-          <> metavar "BROWSER"
+clientOption :: Parser Client
+clientOption = toClient <$> strOption
+          ( long "client"
+          <> short 'c'
+          <> metavar "CLIENT"
           <> value "firefox"
-          <> help "browser from which the bookmarks are importing"
+          <> help "client from which the bookmarks are importing"
           )
 
 files :: Parser [FilePath]

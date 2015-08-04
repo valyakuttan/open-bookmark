@@ -4,10 +4,11 @@ module Main where
 
 import           Control.Monad
 import qualified Data.ByteString.Lazy   as B (readFile)
+import           System.FilePath ((</>))
 
 import           Api.Cloud
 import           Api.Core
-import           Client.FirefoxBookmark
+import           Client.Firefox
 import           OptionParser
 
 
@@ -16,7 +17,8 @@ main = execOptions run
 
 appRun :: FilePath -> App a -> IO ()
 appRun root a = do
-    e <- defaultAppEnvironment root
+    let configFile = root </> "config" </> "open-bookmark.cfg"
+    e <- defaultAppEnvironment root configFile
     r <- runApp a e
     case r of
         Right _  -> return ()
@@ -24,7 +26,8 @@ appRun root a = do
 
 run :: Options -> IO ()
 run opt = case optCommand opt of
-    AddUrl title url tags -> appRun' $ initRepo >> addUrl title url tags
+    InitRepo              -> appRun' initRepo
+    AddUrl title url tags -> appRun' $ addUrl title url tags
     SearchUrl url         -> appRun' $ searchUrl url
     SearchTag tag         -> appRun' $ searchTag' tag
     AttachTag tag url     -> appRun' $ attachTag' tag url
@@ -39,10 +42,10 @@ run opt = case optCommand opt of
 syncBookmarks :: App ()
 syncBookmarks = appPrint "Bookmarks synced.."
 
-importBookmarks' :: Browser -> [FilePath] -> App ()
-importBookmarks' b fs = forM_ fs $ \f -> do
+importBookmarks' :: Client -> [FilePath] -> App ()
+importBookmarks' c fs = forM_ fs $ \f -> do
     xs <- performIO $ B.readFile f
-    case parseJson b xs of
+    case parseJson c xs of
         Right bs -> do
              (bcs,tcs) <- import' bs
              mapM_ writeCloud bcs
@@ -52,7 +55,7 @@ importBookmarks' b fs = forM_ fs $ \f -> do
   where
       import' = importBookmarks readCloudWithDefault readCloudWithDefault
       parseJson FireFox = jsonToBookmarks
-      parseJson _       = jsonToBookmarks
+      parseJson _       = error "Unknown Client"
 
 removeTag' :: String -> String -> App ()
 removeTag' tag url = do
@@ -117,7 +120,23 @@ initRepo :: App ()
 initRepo = do
     bookmarkDir <- bookmarkDirectoryPath
     tagDir      <- tagDirectoryPath
-    mapM_ createAppDirectory [bookmarkDir, tagDir]
+    configPath  <- appConfigDirectoryPath
+    let cfgFile = configPath </> "open-bookmark.cfg"
+    mapM_ createAppDirectory [bookmarkDir, tagDir, configPath]
+    performIO $ writeFile cfgFile $ unlines defaultConfigFile
 
 appPrint :: String -> App ()
 appPrint = performIO . putStrLn
+
+defaultConfigFile :: [String]
+defaultConfigFile = [ "# open-bookmark.cfg"
+                    , ""
+                    , "# mximum number of clouds"
+                    , "max_number_of_clouds = 500"
+                    , ""
+                    , "# prefix of bookmark cloud files"
+                    , "bookmark_cloud_prefix = \"bookmark-cloud-\""
+                    , ""
+                    , "# prefix of tag cloud files"
+                    , "tag_cloud_prefix = \"tag-cloud-\""
+                    ]

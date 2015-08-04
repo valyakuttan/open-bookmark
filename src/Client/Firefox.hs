@@ -2,19 +2,18 @@
 {-# LANGUAGE OverloadedStrings #-}
 ----------------------------------------------------------------------
 -- |
--- Module : Client.FirefoxBookmark
+-- Module : Client.Firefox
 --
 ----------------------------------------------------------------------
 
 
-module Client.FirefoxBookmark
+module Client.Firefox
     (
       jsonToBookmarks
     , sampleBookmarks
     ) where
 
 
-import           Control.Applicative  ((<$>), (<*>))
 import           Control.Lens
 import           Control.Monad        (mzero)
 import           Data.Aeson
