@@ -1,6 +1,6 @@
 name:                open-bookmark
 
-version:             0.3.0.0
+version:             0.3.5.0
 -- synopsis:            
 -- description:         
 -- license:             
@@ -22,7 +22,6 @@ executable open-bookmark
                      , base >= 4.8.0.0
                      , bytestring
                      , containers
-                     , configurator >= 0.3.0.0
                      , directory
                      , errors >= 2.0.0
                      , filepath

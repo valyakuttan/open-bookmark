@@ -4,8 +4,8 @@ module Main where
 
 import           Control.Monad
 import qualified Data.ByteString.Lazy   as B (readFile)
-import           System.FilePath ((</>))
 
+import qualified Cloud.Config         as Cfg
 import           Api.Cloud
 import           Api.Core
 import           Client.Firefox
@@ -17,8 +17,7 @@ main = execOptions run
 
 appRun :: FilePath -> App a -> IO ()
 appRun root a = do
-    let configFile = root </> "config" </> "open-bookmark.cfg"
-    e <- defaultAppEnvironment root configFile
+    e <- defaultAppEnvironment root $ Cfg.configFilePath root
     r <- runApp a e
     case r of
         Right _  -> return ()
@@ -118,25 +117,20 @@ searchTag' tag = do
 
 initRepo :: App ()
 initRepo = do
-    bookmarkDir <- bookmarkDirectoryPath
-    tagDir      <- tagDirectoryPath
-    configPath  <- appConfigDirectoryPath
-    let cfgFile = configPath </> "open-bookmark.cfg"
-    mapM_ createAppDirectory [bookmarkDir, tagDir, configPath]
-    performIO $ writeFile cfgFile $ unlines defaultConfigFile
+    root <- currentAppRoot
+    let xs = [ Cfg.bookmarkDirectoryPath root
+             , Cfg.tagDirectoryPath root
+             , Cfg.configDirectoryPath root
+             ]
+        cfgFile = Cfg.configFilePath root
+    mapM_ createAppDirectory xs
+    writeJSON cfgFile Cfg.defaultConfig
+
+    appPrint ("Bookmark repo initialized at : " ++ root)
+    let msg = "Edit config file at : " ++
+              cfgFile ++
+              " before proceeding.."
+    appPrint msg
 
 appPrint :: String -> App ()
 appPrint = performIO . putStrLn
-
-defaultConfigFile :: [String]
-defaultConfigFile = [ "# open-bookmark.cfg"
-                    , ""
-                    , "# mximum number of clouds"
-                    , "max_number_of_clouds = 500"
-                    , ""
-                    , "# prefix of bookmark cloud files"
-                    , "bookmark_cloud_prefix = \"bookmark-cloud-\""
-                    , ""
-                    , "# prefix of tag cloud files"
-                    , "tag_cloud_prefix = \"tag-cloud-\""
-                    ]

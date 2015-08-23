@@ -28,9 +28,6 @@ module Cloud.App
 
       -- * File system utilities
     , cloudFilePath
-    , appConfigDirectoryPath
-    , bookmarkDirectoryPath
-    , tagDirectoryPath
     , createAppDirectory
     , readConsole
     ) where
@@ -41,8 +38,6 @@ import           Control.Monad.Reader
 import           Control.Monad.State
 import           Data.Aeson
 import qualified Data.ByteString.Lazy as B
-import           Data.Configurator (load)
-import           Data.Configurator.Types (Worth (..))
 import           System.Directory
 
 import           Cloud.Config         (Config)
@@ -87,22 +82,7 @@ cloudFilePath :: Storable b => b -> App FilePath
 cloudFilePath b = do
     cfg <- currentAppConfig
     root   <- currentAppRoot
-    performIO $ Cfg.cloudFilePath cfg root b
-
-bookmarkDirectoryPath :: App FilePath
-bookmarkDirectoryPath = do
-    root <- currentAppRoot
-    return $ Cfg.bookmarkDirectoryPath root
-
-tagDirectoryPath :: App FilePath
-tagDirectoryPath = do
-    root <- currentAppRoot
-    return $ Cfg.tagDirectoryPath root
-
-appConfigDirectoryPath :: App FilePath
-appConfigDirectoryPath = do
-    root <- currentAppRoot
-    return $ Cfg.configDirectoryPath root
+    return $ Cfg.cloudFilePath cfg root b
 
 -- | Returns the current 'Config' object
 currentAppConfig :: App Config
@@ -122,7 +102,7 @@ currentAppEnvironment = App ask
 
 defaultAppEnvironment :: FilePath -> FilePath -> IO Env
 defaultAppEnvironment root configFile = do
-    cfg <- load [Optional configFile]
+    cfg <- loadConfig configFile
     return $ Env cfg root
 
 createAppDirectory :: FilePath -> App ()
@@ -134,6 +114,13 @@ readConsole :: String -> App String
 readConsole msg = do
     performIO $ putStrLn msg
     performIO getLine
+
+loadConfig :: FilePath -> IO Config
+loadConfig path = do
+    x <- readJSON' path
+    case x of
+      Right (Just cfg) -> return cfg
+      _                -> return Cfg.defaultConfig
 
 readJSON :: FromJSON a => FilePath -> App (Maybe a)
 readJSON path = App $ do

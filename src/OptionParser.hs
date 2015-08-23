@@ -53,7 +53,7 @@ execOptions run = do
 
     let opts = info (helper <*> programOptions dir)
                ( fullDesc
-               <> progDesc "Allow manage bookmarks and tags"
+               <> progDesc "Bookmark manager over Github"
                <> header "command line utility to manage bookmarks."
                )
 
