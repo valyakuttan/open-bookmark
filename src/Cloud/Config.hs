@@ -16,6 +16,7 @@ module Cloud.Config (
     , configDirectoryPath
     , configFilePath
     , defaultConfig
+    , maxNumberOfClouds
     ) where
 
 
@@ -54,9 +55,11 @@ cloudFilePath config@(Config cfg) root b = case storeType b of
     suffix     = ".json"
 
 cloudIndex :: Storable b => Config -> b -> Int
-cloudIndex (Config cfg) b = hash b `mod` read n
-  where
-      n = M.findWithDefault "500" "max_number_of_clouds" cfg
+cloudIndex cfg b = hash b `mod` maxNumberOfClouds cfg
+
+maxNumberOfClouds :: Config -> Int
+maxNumberOfClouds (Config cfg)
+    = read $ M.findWithDefault "500" "max_number_of_clouds" cfg
 
 -- | Retrurns the directory where bookmarks are stored.
 bookmarkDirectoryPath :: FilePath -> FilePath

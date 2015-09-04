@@ -33,10 +33,10 @@ run opt = case optCommand opt of
     RemoveBookmark url    -> appRun' $ removeUrl url
     RemoveTag tag url     -> appRun' $ removeTag' tag url
     ImportBookmarks fs    -> appRun' $ initRepo >> import' fs
-    SyncBookmarks         -> appRun' $ syncBookmarks
+    SyncBookmarks         -> appRun' syncBookmarks
   where
       import' = importBookmarks' $ browser opt
-      appRun' a = appRun (repoRoot opt) a
+      appRun' = appRun (repoRoot opt)
 
 syncBookmarks :: App ()
 syncBookmarks = appPrint "Bookmarks synced.."

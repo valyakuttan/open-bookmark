@@ -22,7 +22,6 @@ emptyCloudSpec = do
         it "should return Nothing for any lookup" $ do
             let i = integerToPOSIXMicroSeconds 0
             let c = emptyCloud i i :: BC
-
             search emptyBookmark c `shouldBe` Nothing
 
 insertWithSpec :: Spec
