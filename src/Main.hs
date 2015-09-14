@@ -3,7 +3,7 @@ module Main where
 
 
 import           Control.Monad
-import qualified Data.ByteString.Lazy   as B (readFile)
+import qualified Data.ByteString.Lazy as B (readFile)
 
 import qualified Cloud.Config         as Cfg
 import           Api.Cloud
@@ -32,7 +32,7 @@ run opt = case optCommand opt of
     AttachTag tag url     -> appRun' $ attachTag' tag url
     RemoveBookmark url    -> appRun' $ removeUrl url
     RemoveTag tag url     -> appRun' $ removeTag' tag url
-    ImportBookmarks fs    -> appRun' $ initRepo >> import' fs
+    ImportBookmarks fs    -> appRun' $ import' fs
     SyncBookmarks         -> appRun' syncBookmarks
   where
       import' = importBookmarks' $ browser opt
