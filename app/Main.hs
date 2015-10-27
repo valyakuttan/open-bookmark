@@ -5,7 +5,6 @@ module Main where
 import           Control.Monad
 import qualified Data.ByteString.Lazy as B (readFile)
 
-import qualified Cloud.Config         as Cfg
 import           Api.Cloud
 import           Api.Core
 import           Client.Firefox
@@ -17,7 +16,7 @@ main = execOptions run
 
 appRun :: FilePath -> App a -> IO ()
 appRun root a = do
-    e <- defaultAppEnvironment root $ Cfg.configFilePath root
+    e <- defaultAppEnvironment root $ configFilePath root
     r <- runApp a e
     case r of
         Right _  -> return ()
@@ -118,13 +117,13 @@ searchTag' tag = do
 initRepo :: App ()
 initRepo = do
     root <- currentAppRoot
-    let xs = [ Cfg.bookmarkDirectoryPath root
-             , Cfg.tagDirectoryPath root
-             , Cfg.configDirectoryPath root
+    let xs = [ bookmarkDirectoryPath root
+             , tagDirectoryPath root
+             , configDirectoryPath root
              ]
-        cfgFile = Cfg.configFilePath root
+        cfgFile = configFilePath root
     mapM_ createAppDirectory xs
-    writeJSON cfgFile Cfg.defaultConfig
+    writeJSON cfgFile defaultConfig
 
     appPrint ("Bookmark repo initialized at : " ++ root)
     let msg = "Edit config file at : " ++

@@ -1,91 +1,93 @@
 name:                open-bookmark
-
 version:             0.3.5.0
--- synopsis:            
--- description:         
--- license:             
+-- synopsis:
+-- description:
+-- license:
 --license-file:        LICENSE
 author:              valyakuttan
-
 maintainer:          kuttixxxl@gmail.com
--- copyright:           
--- category:            
+-- copyright:
+-- category:
 build-type:          Simple
--- extra-source-files:  
+-- extra-source-files:
 cabal-version:       >= 1.22
 
-executable open-bookmark
-  main-is:             Main.hs
-  -- other-modules:       
-  -- other-extensions:    
-  build-depends:       aeson >= 0.9.0.1
-                     , base >= 4.8.0.0
+library
+  hs-source-dirs:      src
+  exposed-modules:     Api.Cloud
+                       Api.Core
+                       Client.Firefox
+
+  other-modules:       Cloud.App
+                       Cloud.Cloud
+                       Cloud.Config
+                       Cloud.Engine
+                       Cloud.Store
+                       Cloud.Types
+                       Cloud.Utils
+  build-depends:       base >= 4.8 && < 5
+                     , aeson
                      , bytestring
                      , containers
                      , directory
-                     , errors >= 2.0.0
+                     , errors >= 2.0
                      , filepath
-                     , mtl >= 2.2.1
-                     , lens >= 4.12.2
-                     , optparse-applicative >= 0.11.0.2
-                     , random >= 1.1
-                     , text >= 1.2.1.2
+                     , mtl >= 2.2
+                     , lens >= 4.10
+                     , optparse-applicative >= 0.11
+                     , random
+                     , text
                      , time
                      , transformers
-                     , unordered-containers >= 0.2.5.1
-
-  hs-source-dirs:      src
-
+                     , unordered-containers
   default-language:    Haskell2010
 
-  ghc-options:         -Wall -threaded
-
-Test-Suite             doctest
-  type:                exitcode-stdio-1.0
-
-  default-language:    Haskell2010
-
-  hs-source-dirs:      test
-
-  ghc-options:         -Wall -threaded
-
-  main-is:             doctests.hs
-
-  build-depends:       QuickCheck >= 2.0
-                     , base
+executable bookmark-app
+  hs-source-dirs:      app
+  main-is:             Main.hs
+  other-modules:       OptionParser
+  ghc-options:         -threaded -rtsopts -with-rtsopts=-N
+  build-depends:       base >= 4.8 && < 5
+                     , bytestring
+                     , optparse-applicative
                      , directory
-                     , doctest >= 0.9.3
+                     , open-bookmark
+  default-language:    Haskell2010
+
+test-suite doctest
+  type:                exitcode-stdio-1.0
+  hs-source-dirs:      test
+  main-is:             doctests.hs
+  ghc-options:         -threaded -rtsopts -with-rtsopts=-N
+  build-depends:       base
+                     , QuickCheck
+                     , directory
+                     , doctest
                      , filepath
-                     , hspec >= 2.1.2
+  default-language:    Haskell2010
 
-Test-Suite              spec
-  type:                 exitcode-stdio-1.0
-
+test-suite spec
+  type:                exitcode-stdio-1.0
+  hs-source-dirs:      test src
+  main-is:             Spec.hs
+  ghc-options:         -threaded -rtsopts -with-rtsopts=-N
+  build-depends:       base
+                     , errors >= 2.0
+                     , mtl >= 2.2
+                     , directory
+                     , containers
+                     , unordered-containers
+                     , filepath
+                     , lens >= 4.10
+                     , aeson
+                     , time
+                     , text
+                     , bytestring
+                     , transformers
+                     , QuickCheck
+                     , hspec
   default-language:     Haskell2010
-
-  hs-source-dirs:       src, test
-
-  ghc-options:          -Wall
-
-  main-is:              Spec.hs
-
-  build-depends:        QuickCheck
-                      , aeson
-                      , base
-                      , bytestring
-                      , containers
-                      , directory
-                      , errors >= 2.0
-                      , filepath
-                      , hspec >= 2.1.2
-                      , lens
-                      , mtl
-                      , text
-                      , time
-                      , transformers >= 0.3
-                      , unordered-containers
 
 source-repository      head
   type:                git
-
   location:            git@github.com:valyakuttan/open-bookmarks.git
