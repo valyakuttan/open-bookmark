@@ -317,7 +317,7 @@ unwrapAppMaybe :: MonadIO m => App (Maybe a) -> m a
 unwrapAppMaybe a = unwrapApp a >>= return . fromJust
 
 appRun :: App a -> IO (Either String a)
-appRun a = defaultAppEnvironment "/tmp" >>= runApp a
+appRun a = defaultAppEnvironment "/tmp" "tmp.cfg" >>= runApp a
 
 getTC :: [TagCloud] -> String -> Maybe TagCloud
 getTC tcs title = foldr ((<|>) . f) Nothing tcs

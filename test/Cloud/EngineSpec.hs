@@ -122,7 +122,7 @@ isEmptySpec = do
             c' `shouldSatisfy` not . isEmpty
 
 appRun :: App a -> IO (Either String a)
-appRun a = defaultAppEnvironment "/tmp" >>= runApp a
+appRun a = defaultAppEnvironment "/tmp" "tmp.cfg" >>= runApp a
 
 emptyCloud :: Bookmark -> IO BookmarkCloud
 emptyCloud b = do
@@ -132,7 +132,7 @@ emptyCloud b = do
 bookmarks :: [Bookmark]
 bookmarks = map mkB [0..n]
   where
-      n = 3 * maximumNumberOfClouds defaultConfig
+      n = 3 * maxNumberOfClouds defaultConfig
       mkB i = emptyBookmark & bookmarkUrl .~ pack ("u" ++ show i)
 
 search' :: Bookmark -> [BookmarkCloud] -> Maybe Bookmark

@@ -3,8 +3,7 @@ module Main where
 
 
 import           Control.Monad
-import qualified Data.ByteString.Lazy   as B (readFile)
-import           System.FilePath ((</>))
+import qualified Data.ByteString.Lazy as B (readFile)
 
 import           Api.Cloud
 import           Api.Core
@@ -17,8 +16,7 @@ main = execOptions run
 
 appRun :: FilePath -> App a -> IO ()
 appRun root a = do
-    let configFile = root </> "config" </> "open-bookmark.cfg"
-    e <- defaultAppEnvironment root configFile
+    e <- defaultAppEnvironment root $ configFilePath root
     r <- runApp a e
     case r of
         Right _  -> return ()
@@ -33,11 +31,11 @@ run opt = case optCommand opt of
     AttachTag tag url     -> appRun' $ attachTag' tag url
     RemoveBookmark url    -> appRun' $ removeUrl url
     RemoveTag tag url     -> appRun' $ removeTag' tag url
-    ImportBookmarks fs    -> appRun' $ initRepo >> import' fs
-    SyncBookmarks         -> appRun' $ syncBookmarks
+    ImportBookmarks fs    -> appRun' $ import' fs
+    SyncBookmarks         -> appRun' syncBookmarks
   where
       import' = importBookmarks' $ browser opt
-      appRun' a = appRun (repoRoot opt) a
+      appRun' = appRun (repoRoot opt)
 
 syncBookmarks :: App ()
 syncBookmarks = appPrint "Bookmarks synced.."
@@ -118,25 +116,20 @@ searchTag' tag = do
 
 initRepo :: App ()
 initRepo = do
-    bookmarkDir <- bookmarkDirectoryPath
-    tagDir      <- tagDirectoryPath
-    configPath  <- appConfigDirectoryPath
-    let cfgFile = configPath </> "open-bookmark.cfg"
-    mapM_ createAppDirectory [bookmarkDir, tagDir, configPath]
-    performIO $ writeFile cfgFile $ unlines defaultConfigFile
+    root <- currentAppRoot
+    let xs = [ bookmarkDirectoryPath root
+             , tagDirectoryPath root
+             , configDirectoryPath root
+             ]
+        cfgFile = configFilePath root
+    mapM_ createAppDirectory xs
+    writeJSON cfgFile defaultConfig
+
+    appPrint ("Bookmark repo initialized at : " ++ root)
+    let msg = "Edit config file at : " ++
+              cfgFile ++
+              " before proceeding.."
+    appPrint msg
 
 appPrint :: String -> App ()
 appPrint = performIO . putStrLn
-
-defaultConfigFile :: [String]
-defaultConfigFile = [ "# open-bookmark.cfg"
-                    , ""
-                    , "# mximum number of clouds"
-                    , "max_number_of_clouds = 500"
-                    , ""
-                    , "# prefix of bookmark cloud files"
-                    , "bookmark_cloud_prefix = \"bookmark-cloud-\""
-                    , ""
-                    , "# prefix of tag cloud files"
-                    , "tag_cloud_prefix = \"tag-cloud-\""
-                    ]
